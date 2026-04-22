@@ -23,6 +23,43 @@ pqf decrypt  --in secret.pqf --out secret.dec.pdf --identity alice.key.json --mo
 
 > **Preview:** `pqf` is published as `0.4.0-preview.*`. The wire format is still draft v0.3.1 — files produced by previews are not guaranteed to be readable by `v1.0.0`.
 
+## How to try it
+
+A self-contained roundtrip you can paste into a fresh shell. It creates a throwaway working directory, generates a sample plaintext, encrypts and signs it, inspects the container, decrypts in Authenticated Mode, and confirms the output matches the input byte-for-byte.
+
+```bash
+# 1. Install the CLI (skip if already installed)
+dotnet tool install --global PostQuantum.FileFormat.Cli --prerelease
+
+# 2. Set up a scratch directory
+mkdir -p /tmp/pqf-demo && cd /tmp/pqf-demo
+
+# 3. Generate a recipient encryption keypair and a signing keypair
+pqf keygen --type encrypt --public-out alice.pub.pem  --private-out alice.key.json
+pqf keygen --type sign    --public-out signer.pub.pem --private-out signer.key.json
+
+# 4. Create a sample plaintext
+echo "hello post-quantum world" > sample.txt
+
+# 5. Encrypt and sign
+pqf encrypt --in sample.txt --out sample.pqf \
+  --recipient alice.pub.pem \
+  --signing-key signer.key.json
+
+# 6. Inspect the container without decrypting
+pqf inspect --in sample.pqf
+
+# 7. Decrypt in Authenticated Mode (verify before releasing plaintext)
+pqf decrypt --in sample.pqf --out sample.out.txt \
+  --identity alice.key.json \
+  --mode authenticated
+
+# 8. Confirm roundtrip
+diff sample.txt sample.out.txt && echo "OK: roundtrip verified"
+```
+
+To clean up: `cd ~ && rm -rf /tmp/pqf-demo`.
+
 ## What this project is
 
 - A **file format specification** ([spec/PQF-SPEC-v1.md](spec/PQF-SPEC-v1.md), draft v0.3.1).
