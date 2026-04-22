@@ -140,8 +140,11 @@ tests/PostQuantum.FileFormat.Tests/
                                  Validation, refusal, and roundtrip tests
 tests/PostQuantum.FileFormat.Cli.Tests/
                                  CLI integration tests
+scripts/smoke.sh                 End-to-end roundtrip + refusal-path script (run by CI)
 docs/                            Release prep, checklist review, notes
 SPEC-CHECKLIST.md                Per-section conformance checklist
+CONTRIBUTING.md                  How to file spec reviews, bugs, and PRs
+SECURITY.md                      Security-reporting policy and supported versions
 ```
 
 ## Security model
@@ -204,6 +207,9 @@ If you find an issue, please open a [GitHub Issue](https://github.com/systemslib
 - [`spec/PQF-DESIGN-RATIONALE-v1.md`](./spec/PQF-DESIGN-RATIONALE-v1.md) — why the spec is what it is; recommended reading before reviewing the format.
 - [`SPEC-CHECKLIST.md`](./SPEC-CHECKLIST.md) — per-section conformance items enumerated from the spec.
 - [`PHASE-NOTES.md`](./PHASE-NOTES.md) — implementation phase notes including any spec-ambiguity decisions made during the reference build.
+- [`CONTRIBUTING.md`](./CONTRIBUTING.md) — how to file spec reviews, bugs, and PRs; what gets accepted and what doesn't.
+- [`SECURITY.md`](./SECURITY.md) — how to report security-sensitive findings (private security advisory channel for exploitable issues).
+- [`scripts/smoke.sh`](./scripts/smoke.sh) — end-to-end roundtrip + refusal-path script run by CI; the simplest way to validate a local build.
 
 ## License
 

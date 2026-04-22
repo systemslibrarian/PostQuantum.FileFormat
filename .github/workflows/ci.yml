@@ -6,6 +6,7 @@ on:
 
 jobs:
   build-test:
+    name: Build + unit tests + smoke (.NET 8 SDK)
     runs-on: ubuntu-latest
 
     steps:
@@ -25,3 +26,64 @@ jobs:
 
       - name: Test
         run: dotnet test PostQuantum.FileFormat.sln --no-build -c Release --verbosity normal
+
+      - name: Smoke test (in-tree CLI roundtrip)
+        run: bash scripts/smoke.sh
+
+  runtime-matrix:
+    name: Runtime roll-forward smoke (.NET ${{ matrix.runtime }})
+    needs: build-test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        runtime: ['8.0.x', '9.0.x', '10.0.x']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Build with the .NET 8 SDK (the project's TargetFramework), then add the
+      # matrix runtime so we can verify <RollForward>Major</RollForward> actually
+      # lets the packed tool execute on .NET 9 and .NET 10.
+      - name: Setup .NET 8 SDK (build)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Setup .NET ${{ matrix.runtime }} (runtime under test)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ matrix.runtime }}
+
+      - name: Pack CLI
+        run: |
+          dotnet pack cli/PostQuantum.FileFormat.Cli/PostQuantum.FileFormat.Cli.csproj \
+            -c Release \
+            -o "${{ runner.temp }}/nupkgs"
+
+      - name: Install pqf as a local tool from the freshly packed nupkg
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir tool-test && cd tool-test
+          dotnet new tool-manifest
+          dotnet tool install PostQuantum.FileFormat.Cli \
+            --add-source "${{ runner.temp }}/nupkgs" \
+            --prerelease
+
+      - name: pqf --help (must run on .NET ${{ matrix.runtime }})
+        working-directory: ${{ runner.temp }}/tool-test
+        run: dotnet tool run pqf -- --help
+
+      - name: Roundtrip on .NET ${{ matrix.runtime }}
+        working-directory: ${{ runner.temp }}/tool-test
+        run: |
+          set -euo pipefail
+          dotnet tool run pqf -- keygen --type encrypt --public-out enc.pub --private-out enc.key
+          dotnet tool run pqf -- keygen --type sign    --public-out sig.pub --private-out sig.key
+          head -c 100000 /dev/urandom > sample.bin
+          dotnet tool run pqf -- encrypt --in sample.bin --out sample.pqf \
+            --recipient enc.pub --signing-key sig.key
+          dotnet tool run pqf -- decrypt --in sample.pqf --out sample.out.bin \
+            --identity enc.key --mode authenticated
+          diff -q sample.bin sample.out.bin
+          echo "roundtrip OK on .NET ${{ matrix.runtime }}"
