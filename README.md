@@ -41,14 +41,15 @@ pqf decrypt  --in secret.pqf --out secret.dec.pdf --identity alice.key.json --mo
 
 ## Core properties
 
+- **Fail-closed by design:** any malformed structure, unknown field, reserved bit, length mismatch, or integrity failure results in immediate refusal with a typed error. There are no best-effort or permissive parsing paths.
 - **Hybrid post-quantum encryption:** X25519 + ML-KEM-1024, combined through HKDF-SHA256 (`pqf1-concat-extract-v1`).
 - **Hybrid signatures (optional):** Ed25519 + ML-DSA-87, fixed 4691-byte concatenated layout. If signed, both halves must verify.
 - **Deterministic CBOR header** per RFC 8949 §4.2.2. Non-deterministic encodings are refused.
 - **Chunked AES-256-GCM payload** with per-chunk HKDF-derived keys, fixed zero nonce, and AAD binding `file_id || chunk_index || is_final`.
 - **Multi-recipient** in a single container, no payload duplication.
 - **Two decryption modes:**
-  - *Authenticated Mode* — plaintext is not released until the file signature (when present) and footer have verified.
-  - *Streaming Mode* — plaintext may be released chunk-by-chunk on AEAD success, with explicit, non-silent post-hoc failure signaling.
+  - *Authenticated Mode* (default): verifies the file signature (when present) and footer before releasing any plaintext to the caller.
+  - *Streaming Mode*: releases verified chunks as they are read, with explicit, non-silent post-hoc signaling if the footer or file signature fails to verify. Streaming failures cannot be silently ignored by the caller.
 - **Fail-closed validation:** unknown fields, length mismatches, reserved bits, truncation, trailing bytes, and any algorithm deviation are refused. There are no permissive paths.
 
 ## 60-second example
@@ -85,6 +86,8 @@ pqf decrypt \
 - `.pqf` is the encrypted container: `PQF1` magic, deterministic CBOR header, optional 4691-byte header signature, AES-256-GCM chunks, 20-byte footer, and an optional 4691-byte file signature.
 - `pqf inspect` parses and prints the header and footer without touching plaintext.
 - `--mode authenticated` buffers verification before any plaintext is released. `--mode streaming` releases verified chunks as they are read and surfaces post-hoc verification failures explicitly.
+
+The resulting `.pqf` file is a self-contained encrypted container: it bundles recipient-wrapped keys, chunked ciphertext, integrity metadata, and optional hybrid signatures in a single byte stream.
 
 ## Repository structure
 
@@ -157,6 +160,13 @@ PQF is explicitly seeking review from cryptographers and post-quantum implemente
 - **§6.4** — Authenticated vs Streaming Mode failure-signaling contract.
 
 If you find an issue, please open a [GitHub Issue](https://github.com/systemslibrarian/PostQuantum.FileFormat/issues) or start a thread under [Discussions](https://github.com/systemslibrarian/PostQuantum.FileFormat/discussions). Reproducible refusal cases are especially welcome and will be folded into the negative test-vector set.
+
+## Where to go next
+
+- [`spec/PQF-SPEC-v1.md`](./spec/PQF-SPEC-v1.md) — the authoritative format specification and conformance rules.
+- [`spec/PQF-DESIGN-RATIONALE-v1.md`](./spec/PQF-DESIGN-RATIONALE-v1.md) — why the spec is what it is; recommended reading before reviewing the format.
+- [`SPEC-CHECKLIST.md`](./SPEC-CHECKLIST.md) — per-section conformance items enumerated from the spec.
+- [`PHASE-NOTES.md`](./PHASE-NOTES.md) — implementation phase notes including any spec-ambiguity decisions made during the reference build.
 
 ## License
 
