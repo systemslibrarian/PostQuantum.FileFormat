@@ -67,6 +67,15 @@ README.md                      — This file
 LICENSE                        — MIT
 ```
 
+## Current Implementation Limits
+
+The PQF format is specified for streaming-safe processing, but the current
+`PqfFileReader.OpenForValidation` path validates a fully materialized byte
+buffer and uses `int`-indexed offsets internally. In practice, that means the
+current reader/validator path is bounded by the maximum size of a single
+in-memory buffer on the active .NET runtime, even though the wire format uses
+`uint64` footer counters.
+
 ## Seeking review
 
 I am specifically seeking review from cryptographers on:
