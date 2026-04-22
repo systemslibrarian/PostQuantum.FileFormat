@@ -36,19 +36,19 @@ internal sealed class AuthenticatedModeDecryptor
 
         Stream? buffer = null;
         string? tempFilePath = null;
-        long observedPlaintext = 0;
+        ulong observedPlaintext = 0;
         using var chunkHasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
 
         try
         {
-            if (reader.ReportedPlaintextBytes > BufferToDiskThresholdBytes)
+            if (reader.ReportedPlaintextBytes > (ulong)BufferToDiskThresholdBytes)
             {
                 tempFilePath = Path.Combine(Path.GetTempPath(), $"pqf-auth-{Guid.NewGuid():N}.tmp");
                 buffer = new FileStream(tempFilePath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 4096, FileOptions.SequentialScan);
             }
             else
             {
-                buffer = new MemoryStream((int)Math.Min(int.MaxValue, Math.Max(0, reader.ReportedPlaintextBytes)));
+                buffer = new MemoryStream((int)reader.ReportedPlaintextBytes);
             }
 
             for (var i = 0; i < reader.Chunks.Count; i++)
@@ -71,7 +71,7 @@ internal sealed class AuthenticatedModeDecryptor
                 }
 
                 await buffer.WriteAsync(plaintextBuffer.AsMemory(0, written), ct).ConfigureAwait(false);
-                observedPlaintext += written;
+                observedPlaintext += (ulong)written;
                 SecureZero.Clear(plaintextBuffer);
             }
 

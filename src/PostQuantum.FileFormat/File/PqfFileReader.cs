@@ -24,8 +24,8 @@ public sealed class PqfFileReader
     public PqfFileHeader Header { get; private set; } = null!;
     public ReadOnlyMemory<byte> HeaderSignatureBytes { get; private set; }
     public ReadOnlyMemory<byte> FileSignatureBytes { get; private set; }
-    public long TotalChunkCount { get; private set; }
-    public long ReportedPlaintextBytes { get; private set; }
+    public ulong TotalChunkCount { get; private set; }
+    public ulong ReportedPlaintextBytes { get; private set; }
     public ReadOnlyMemory<byte> FileBytes { get; private set; }
     internal ReadOnlyMemory<byte> HeaderBytes => _headerBytes;
     internal ReadOnlyMemory<byte> FooterBytes => _footerBytes;
@@ -34,6 +34,9 @@ public sealed class PqfFileReader
     /// <summary>
     /// Open and validate a PQF file for reading.
     /// Throws PqfFileException on any refusal condition.
+    /// This API validates a fully materialized byte buffer and currently uses
+    /// int-indexed offsets internally, so its practical ceiling is bounded by
+    /// the size of a single in-memory buffer on the current runtime.
     /// </summary>
     public static PqfFileReader OpenForValidation(ReadOnlyMemory<byte> fileBytes)
     {
@@ -121,10 +124,12 @@ public sealed class PqfFileReader
         var headerCborBytes = fileBytes.Slice(10, (int)headerLength);
         _headerBytes = headerCborBytes;
 
-        // Validate CBOR determinism and parse header
+        // Validate CBOR determinism once, then pass the parsed value into the
+        // schema reader.
+        CborValue headerValue;
         try
         {
-            _ = DeterministicCborValidator.ParseStrict(headerCborBytes);
+            headerValue = DeterministicCborValidator.ParseStrict(headerCborBytes);
         }
         catch (CborValidationException ex)
         {
@@ -155,7 +160,6 @@ public sealed class PqfFileReader
         // Parse and validate header schema
         try
         {
-            var headerValue = DeterministicCborValidator.ParseStrict(headerCborBytes);
             this.Header = HeaderCborReader.Parse(headerValue);
         }
         catch (PqfFileException)
@@ -221,13 +225,13 @@ public sealed class PqfFileReader
         }
 
         // Parse footer: chunk count and plaintext bytes.
-        var chunkCount = BinaryPrimitives.ReadInt64BigEndian(footerSpan[4..12]);
-        var plaintextBytes = BinaryPrimitives.ReadInt64BigEndian(footerSpan[12..20]);
+        var chunkCount = BinaryPrimitives.ReadUInt64BigEndian(footerSpan[4..12]);
+        var plaintextBytes = BinaryPrimitives.ReadUInt64BigEndian(footerSpan[12..20]);
 
         this.TotalChunkCount = chunkCount;
         this.ReportedPlaintextBytes = plaintextBytes;
 
-        if (chunkCount != _chunks.Count)
+        if (chunkCount != (ulong)_chunks.Count)
         {
             throw new PqfFileException(
                 PqfRefusalReason.FooterChunkCountMismatch,
@@ -235,10 +239,10 @@ public sealed class PqfFileReader
                 offset: footerOffset + 4);
         }
 
-        long observedPlaintextBytes = 0;
+        ulong observedPlaintextBytes = 0;
         foreach (var chunk in _chunks)
         {
-            observedPlaintextBytes += chunk.PlaintextLength;
+            observedPlaintextBytes += (ulong)chunk.PlaintextLength;
         }
 
         if (plaintextBytes != observedPlaintextBytes)

@@ -63,7 +63,7 @@ internal sealed class StreamingModeDecryptor
                     SecureZero.Clear(plaintextBuffer);
                 }
 
-                if (emitted != reader.ReportedPlaintextBytes)
+                if ((ulong)emitted != reader.ReportedPlaintextBytes)
                 {
                     return new PqfDecryptResult(false, PqfRefusalReason.FooterPlaintextBytesMismatch, emitted, true);
                 }

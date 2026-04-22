@@ -7,6 +7,6 @@ namespace PostQuantum.FileFormat.File;
 /// </summary>
 public sealed class PqfFooter
 {
-    public long TotalChunkCount { get; set; }
-    public long TotalPlaintextBytes { get; set; }
+    public ulong TotalChunkCount { get; set; }
+    public ulong TotalPlaintextBytes { get; set; }
 }

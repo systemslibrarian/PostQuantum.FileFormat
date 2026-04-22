@@ -17,8 +17,8 @@ public sealed class PqfFileWriterTests
         var bytes = destination.ToArray();
         var reader = PqfFileReader.OpenForValidation(bytes);
         Assert.NotNull(reader);
-        Assert.Equal(0, reader.TotalChunkCount);
-        Assert.Equal(0, reader.ReportedPlaintextBytes);
+        Assert.Equal(0UL, reader.TotalChunkCount);
+        Assert.Equal(0UL, reader.ReportedPlaintextBytes);
     }
 
     [Fact]
