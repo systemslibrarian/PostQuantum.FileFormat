@@ -2,6 +2,8 @@
 
 **Hybrid post-quantum file encryption for long-term archival.**
 
+[![CI](https://github.com/systemslibrarian/PostQuantum.FileFormat/actions/workflows/ci.yml/badge.svg)](https://github.com/systemslibrarian/PostQuantum.FileFormat/actions/workflows/ci.yml)
+
 > ⚠️ **DRAFT / EXPERIMENTAL** — This specification has not been reviewed by an
 > independent cryptographer. Do not use to protect irreplaceable data. See
 > [Status](#status) below.
@@ -40,7 +42,7 @@ now — the "harvest now, decrypt later" threat model.
 |---|---|
 | Specification | DRAFT v0.3.1 — seeking cryptographic review |
 | Design rationale | DRAFT v0.1.0 |
-| Reference implementation (.NET) | Not yet started |
+| Reference implementation (.NET) | Phase 1 complete (foundations) |
 | Test vectors | Not yet generated |
 | CLI tool (`pqf`) | Not yet started |
 | Second-language implementation | Not yet |

@@ -1,25 +1,25 @@
-# Reference implementation (coming)
+# Reference implementation (Phase 1 complete)
 
-This directory will contain the reference .NET implementation of PQF as the
-`PostQuantum.FileFormat` NuGet package.
+This directory contains the .NET reference implementation of the PQF v1 Phase 1
+foundations in the `PostQuantum.FileFormat` library (targeting `net8.0`).
 
-**First code to be written:**
+## What Phase 1 ships
 
-1. Deterministic CBOR encoder (per spec §2.5)
-2. Canonical binary public key format round-trip (per spec §7.1)
-3. Fingerprint computation (per spec §7.3)
-4. PEM armoring round-trip (per spec §7.2)
+1. Deterministic CBOR encoder and strict validator (spec section 2.5)
+2. Canonical binary encryption/signing public key format types (spec section 7.1)
+3. PEM armoring and dearmoring for public keys (spec section 7.2)
+4. Fingerprint computation and formatting helpers (spec section 7.3)
+5. Unit and integration tests for the full Phase 1 surface
 
-Only after these foundations pass their tests should cryptographic operations
-begin to be implemented, in this order:
+## What Phase 2 adds
 
-5. HKDF-SHA-256 combiner (per spec §2.4)
-6. Per-recipient KEK derivation and DEK wrapping (per spec §6.2)
-7. Chunked AEAD payload encryption (per spec §5.2)
-8. Hybrid signatures (per spec §6.2 step 9)
-9. Authenticated Mode decryption (per spec §6.4.1)
-10. Streaming Mode decryption (per spec §6.4.2)
+1. HKDF combiner and KEK derivation (spec section 2.4)
+2. DEK wrapping and recipient processing (spec section 6.2)
+3. Chunked payload encryption/decryption with footer validation (spec section 5)
+4. Hybrid header/file signature operations (spec section 6.2, section 6.4)
+5. Full file read/write workflows for authenticated and streaming modes
 
-The `pqf` CLI tool lives in a sibling directory (`/cli/`).
+The `pqf` CLI tool remains in the sibling `cli` directory and is out of scope
+for Phase 1.
 
 See the [specification](../spec/PQF-SPEC-v1.md) for authoritative detail.
