@@ -59,6 +59,19 @@ may not be readable by the final v1 release.
 A public record of all specification changes is maintained in the change log
 at the top of `spec/PQF-SPEC-v1.md`.
 
+## Known limitations
+
+The reference implementation does not claim side-channel resistance. It
+inherits the posture of its underlying primitives, including BouncyCastle's
+ML-KEM-1024 and ML-DSA-87 implementations, which make no public claim of
+constant-time execution against power, EM, or microarchitectural side
+channels. The full per-operation matrix — what the wrapper controls, what it
+inherits, and what is explicitly out of scope — is documented in
+[docs/SIDE-CHANNEL-POSTURE.md](./docs/SIDE-CHANNEL-POSTURE.md). Reviewers
+and integrators whose threat model includes co-tenancy on the same physical
+CPU or physical proximity to the host should read that document before
+relying on this implementation.
+
 ## Supported versions
 
 | Version | Supported |

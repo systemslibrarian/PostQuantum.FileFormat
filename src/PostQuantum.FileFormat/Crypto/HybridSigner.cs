@@ -41,8 +41,13 @@ public sealed class HybridSigner
             return false;
         }
 
+        // Both halves are always evaluated. Using bitwise & rather than the
+        // short-circuit && means a timing observer cannot distinguish
+        // "Ed25519 failed" from "Ed25519 passed but ML-DSA-87 failed" by the
+        // wall-clock cost of the call. The file is refused either way; this is
+        // defense in depth against a leak the underlying primitives might add.
         var classicalOk = _provider.Ed25519Verify(publicKey.Ed25519PublicKey.Span, message, signature[..64]);
         var pqcOk = _provider.MlDsa87Verify(publicKey.MlDsa87PublicKey.Span, message, signature[64..]);
-        return classicalOk && pqcOk;
+        return classicalOk & pqcOk;
     }
 }

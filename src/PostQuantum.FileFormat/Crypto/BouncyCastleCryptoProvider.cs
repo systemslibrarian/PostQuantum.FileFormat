@@ -63,13 +63,27 @@ public sealed class BouncyCastleCryptoProvider : ICryptoProvider
 
     public byte[] X25519DeriveSharedSecret(ReadOnlySpan<byte> sk, ReadOnlySpan<byte> peerPk)
     {
-        var privateKey = new X25519PrivateKeyParameters(sk.ToArray(), 0);
-        var publicKey = new X25519PublicKeyParameters(peerPk.ToArray(), 0);
-        var agreement = new X25519Agreement();
-        agreement.Init(privateKey);
-        var output = new byte[agreement.AgreementSize];
-        agreement.CalculateAgreement(publicKey, output, 0);
-        return output;
+        // sk arrives as a span over the caller's identity buffer. BouncyCastle's
+        // X25519PrivateKeyParameters constructor takes byte[]+offset and copies
+        // into its own internal buffer. We must materialize a managed array to
+        // call it; we zero that intermediate copy in finally so the GC heap does
+        // not retain a plaintext private key past this method's return.
+        var skCopy = new byte[sk.Length];
+        try
+        {
+            sk.CopyTo(skCopy);
+            var privateKey = new X25519PrivateKeyParameters(skCopy, 0);
+            var publicKey = new X25519PublicKeyParameters(peerPk.ToArray(), 0);
+            var agreement = new X25519Agreement();
+            agreement.Init(privateKey);
+            var output = new byte[agreement.AgreementSize];
+            agreement.CalculateAgreement(publicKey, output, 0);
+            return output;
+        }
+        finally
+        {
+            SecureZero.Clear(skCopy);
+        }
     }
 
     public (byte[] sk, byte[] pk) MlKem1024GenerateKeyPair()
@@ -96,13 +110,24 @@ public sealed class BouncyCastleCryptoProvider : ICryptoProvider
 
     public byte[] MlKem1024Decapsulate(ReadOnlySpan<byte> sk, ReadOnlySpan<byte> ciphertext)
     {
-        var privateKey = MLKemPrivateKeyParameters.FromEncoding(MLKemParameters.ml_kem_1024, sk.ToArray());
-        var decapsulator = new MLKemDecapsulator(MLKemParameters.ml_kem_1024);
-        decapsulator.Init(privateKey);
+        // See note on X25519DeriveSharedSecret: same pattern, zero the
+        // intermediate managed copy of the private key in finally.
+        var skCopy = new byte[sk.Length];
+        try
+        {
+            sk.CopyTo(skCopy);
+            var privateKey = MLKemPrivateKeyParameters.FromEncoding(MLKemParameters.ml_kem_1024, skCopy);
+            var decapsulator = new MLKemDecapsulator(MLKemParameters.ml_kem_1024);
+            decapsulator.Init(privateKey);
 
-        var sharedSecret = new byte[decapsulator.SecretLength];
-        decapsulator.Decapsulate(ciphertext, sharedSecret);
-        return sharedSecret;
+            var sharedSecret = new byte[decapsulator.SecretLength];
+            decapsulator.Decapsulate(ciphertext, sharedSecret);
+            return sharedSecret;
+        }
+        finally
+        {
+            SecureZero.Clear(skCopy);
+        }
     }
 
     public (byte[] sk, byte[] pk) Ed25519GenerateKeyPair()
@@ -114,10 +139,20 @@ public sealed class BouncyCastleCryptoProvider : ICryptoProvider
 
     public byte[] Ed25519Sign(ReadOnlySpan<byte> sk, ReadOnlySpan<byte> message)
     {
-        var signer = new Ed25519Signer();
-        signer.Init(true, new Ed25519PrivateKeyParameters(sk.ToArray(), 0));
-        signer.BlockUpdate(message);
-        return signer.GenerateSignature();
+        // See note on X25519DeriveSharedSecret.
+        var skCopy = new byte[sk.Length];
+        try
+        {
+            sk.CopyTo(skCopy);
+            var signer = new Ed25519Signer();
+            signer.Init(true, new Ed25519PrivateKeyParameters(skCopy, 0));
+            signer.BlockUpdate(message);
+            return signer.GenerateSignature();
+        }
+        finally
+        {
+            SecureZero.Clear(skCopy);
+        }
     }
 
     public bool Ed25519Verify(ReadOnlySpan<byte> pk, ReadOnlySpan<byte> message, ReadOnlySpan<byte> signature)
@@ -140,11 +175,21 @@ public sealed class BouncyCastleCryptoProvider : ICryptoProvider
 
     public byte[] MlDsa87Sign(ReadOnlySpan<byte> sk, ReadOnlySpan<byte> message)
     {
-        var signer = new MLDsaSigner(MLDsaParameters.ml_dsa_87, false);
-        var privateKey = MLDsaPrivateKeyParameters.FromEncoding(MLDsaParameters.ml_dsa_87, sk.ToArray());
-        signer.Init(true, privateKey);
-        signer.BlockUpdate(message);
-        return signer.GenerateSignature();
+        // See note on X25519DeriveSharedSecret.
+        var skCopy = new byte[sk.Length];
+        try
+        {
+            sk.CopyTo(skCopy);
+            var signer = new MLDsaSigner(MLDsaParameters.ml_dsa_87, false);
+            var privateKey = MLDsaPrivateKeyParameters.FromEncoding(MLDsaParameters.ml_dsa_87, skCopy);
+            signer.Init(true, privateKey);
+            signer.BlockUpdate(message);
+            return signer.GenerateSignature();
+        }
+        finally
+        {
+            SecureZero.Clear(skCopy);
+        }
     }
 
     public bool MlDsa87Verify(ReadOnlySpan<byte> pk, ReadOnlySpan<byte> message, ReadOnlySpan<byte> signature)
