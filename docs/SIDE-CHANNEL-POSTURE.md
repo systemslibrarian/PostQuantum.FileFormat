@@ -89,11 +89,11 @@ that provider claims (or does not claim) about side-channel resistance. The
 maintainers have **not** independently verified any of these claims; the
 table is a guide for reviewers, not an endorsement.
 
-| Primitive | Provider on .NET 8 | Provider on .NET 9 / 10 (planned) | Public CT claim? | Notes |
+| Primitive | Provider on .NET 8 | Provider on .NET 10+ when platform supports it | Public CT claim? | Notes |
 |---|---|---|---|---|
-| X25519 | BCL `ECDiffieHellman` (Curve25519 via `MLKemAlgorithm`-adjacent paths is being added; today the BCL exposes Curve25519 differently per platform). PQF currently uses BouncyCastle `X25519Agreement` for cross-runtime uniformity. | Same. May migrate to BCL `X25519` once it stabilises. | BouncyCastle: no explicit claim. The reference C# implementation uses field arithmetic that is *intended* to be constant-time but is not formally verified. | Curve25519 is designed to make constant-time implementation natural; whether this particular implementation achieves it on RyuJIT is not a claim BouncyCastle makes. |
-| ML-KEM-1024 | BouncyCastle `MLKemEngine`. | BouncyCastle today; may migrate to BCL once `System.Security.Cryptography.MLKem` ships in a stable runtime. | **No public constant-time claim** against power, EM, or microarchitectural side channels. | NIST FIPS 203 specifies ML-KEM but does not mandate constant-time implementation. The BC implementation is managed C# and subject to JIT-level non-determinism. |
-| ML-DSA-87 | BouncyCastle `MLDsaSigner`. | Same migration path as ML-KEM. | **No public constant-time claim.** | Same caveats as ML-KEM. ML-DSA signing in particular has historically been a target of side-channel research because of the rejection sampling step in Dilithium-family schemes. |
+| X25519 | BouncyCastle `X25519Agreement` (for cross-runtime uniformity; the BCL Curve25519 surface is not uniform across platforms). | Same — BouncyCastle. The BCL bridge does not currently route X25519 because the BCL surface is platform-shaped. | BouncyCastle: no explicit claim. The reference C# implementation uses field arithmetic that is *intended* to be constant-time but is not formally verified. | Curve25519 is designed to make constant-time implementation natural; whether this particular implementation achieves it on RyuJIT is not a claim BouncyCastle makes. |
+| ML-KEM-1024 | BouncyCastle `MLKemEngine`. | **BCL `System.Security.Cryptography.MLKem`** when `MLKem.IsSupported` is `true` on the host (typically: .NET 10+ runtime AND a platform crypto stack that exposes ML-KEM, e.g. modern OpenSSL on Linux or CNG on Windows). Falls back to BouncyCastle when not. Selection is automatic via [`BclCryptoProvider`](../src/PostQuantum.FileFormat/Crypto/BclCryptoProvider.cs); the active provider is logged once at process start. | BCL: inherits whatever the platform crypto provider claims. Microsoft does not restate side-channel claims at the BCL surface, but the underlying providers (OpenSSL ML-KEM, CNG ML-KEM) may. BouncyCastle: no public constant-time claim. | NIST FIPS 203 specifies ML-KEM but does not mandate constant-time implementation. The BC implementation is managed C# and subject to JIT-level non-determinism; the BCL implementation is platform-backed and routes through a native provider. |
+| ML-DSA-87 | BouncyCastle `MLDsaSigner`. | **BCL `System.Security.Cryptography.MLDsa`** under the same conditions as ML-KEM. Falls back to BouncyCastle when not. | Same as ML-KEM: BCL inherits the platform claim, BC has no public claim. | Same caveats as ML-KEM. ML-DSA signing in particular has historically been a target of side-channel research because of the rejection sampling step in Dilithium-family schemes; routing it through a platform-backed implementation when available is the main reason the BCL bridge exists. |
 | Ed25519 | BouncyCastle `Ed25519Signer`. | Same migration path. | BouncyCastle: no explicit claim. Ed25519's deterministic nonce derivation removes the most common side-channel target (RNG-based nonce reuse) from this primitive. | Ed25519 is, like X25519, designed for natural constant-time implementation; the same JIT caveat applies. |
 | AES-256-GCM | BCL `System.Security.Cryptography.AesGcm`. | Same. | On x64 with AES-NI + CLMUL: hardware-accelerated and constant-time at the CPU level. On platforms without those instructions: software fallback with no constant-time claim. | The BCL picks at runtime. PQF does not opt out of the hardware path. |
 | HKDF-SHA256 | BCL `System.Security.Cryptography.HKDF`. | Same. | SHA-256 in the BCL goes through OpenSSL on Linux (constant-time) and CNG on Windows (constant-time). HKDF is a thin wrapper. | Considered safe. |
@@ -145,9 +145,18 @@ implementation in its current form.
 The maintainers would consider a change of posture warranted only after at
 least one of the following:
 
-1. The .NET BCL ships first-class `System.Security.Cryptography.MLKem` and
+1. ~~The .NET BCL ships first-class `System.Security.Cryptography.MLKem` and
    `MLDsa` with documented side-channel claims, and PQF migrates to those
-   APIs on the .NET version that ships them.
+   APIs on the .NET version that ships them.~~ **Partially done.** As of
+   PQF 0.4.x the [`BclCryptoProvider`](../src/PostQuantum.FileFormat/Crypto/BclCryptoProvider.cs)
+   reflectively bridges to `System.Security.Cryptography.MLKem` and
+   `MLDsa` when they are present and report `IsSupported = true` at
+   runtime. The bridge does **not** itself improve the posture: what
+   improves the posture is the platform crypto provider behind those
+   types. Whether the platform claim is stronger than BouncyCastle's lack
+   of claim depends on the host. PQF will continue to track the BCL
+   surface as it stabilises and as Microsoft publishes side-channel
+   guidance for these primitives.
 2. An external cryptographer performs and publishes a side-channel review of
    BouncyCastle's ML-KEM-1024 / ML-DSA-87 with a positive result on RyuJIT.
 3. PQF gains a native-code provider (e.g. wrapping liboqs) with documented
