@@ -2,24 +2,12 @@ using PostQuantum.FileFormat.File;
 
 namespace PostQuantum.FileFormat.Tests.File;
 
-public sealed class SignatureStructure_RefusalTests
+public sealed class ChunkAndFooter_RefusalTests
 {
     [Fact]
-    public void Reader_accepts_signed_file_with_valid_signatures()
+    public void Reader_accepts_unsigned_file_with_valid_chunk_structure()
     {
-        // Unsigned file with valid structure: should throw NotImplementedException for chunk parsing (Phase 2.4+)
-        var header = BuildValidSignedHeader();
-        var encodedHeader = PostQuantum.FileFormat.Cbor.DeterministicCborEncoder.Encode(header);
-        var buffer = BuildSignedFileWithSignatures(encodedHeader);
-        
-        // Expect to reach Phase 3 (decryption not implemented)
-        var ex = Assert.Throws<NotImplementedException>(() => PqfFileReader.OpenForValidation(buffer));
-        Assert.Contains("PHASE 3", ex.Message);
-    }
-
-    [Fact]
-    public void Reader_accepts_unsigned_file_with_no_signatures()
-    {
+        // Unsigned file: header + no signature + footer
         var header = BuildValidUnsignedHeader();
         var encodedHeader = PostQuantum.FileFormat.Cbor.DeterministicCborEncoder.Encode(header);
         var buffer = BuildUnsignedFileWithFooter(encodedHeader);
@@ -30,21 +18,51 @@ public sealed class SignatureStructure_RefusalTests
     }
 
     [Fact]
-    public void Reader_refuses_signed_file_missing_header_signature()
+    public void Reader_accepts_signed_file_with_valid_structure()
     {
         var header = BuildValidSignedHeader();
         var encodedHeader = PostQuantum.FileFormat.Cbor.DeterministicCborEncoder.Encode(header);
-        var buffer = BuildSignedFileMissingHeaderSignature(encodedHeader);
+        var buffer = BuildSignedFileFullStructure(encodedHeader);
+
+        var ex = Assert.Throws<NotImplementedException>(() => PqfFileReader.OpenForValidation(buffer));
+        Assert.Contains("PHASE 3", ex.Message);
+    }
+
+    [Fact]
+    public void Reader_refuses_footer_with_wrong_magic()
+    {
+        var header = BuildValidUnsignedHeader();
+        var encodedHeader = PostQuantum.FileFormat.Cbor.DeterministicCborEncoder.Encode(header);
+        
+        var buffer = new byte[10 + encodedHeader.Length + 20];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(buffer, 0x50514631); // "PQF1"
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(4), 0x0001);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(buffer.AsSpan(6), (uint)encodedHeader.Length);
+        encodedHeader.CopyTo(buffer.AsMemory(10));
+
+        // Write wrong footer magic
+        var footerOffset = 10 + encodedHeader.Length;
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(buffer.AsSpan(footerOffset), 0x58585858); // "XXXX" instead of "PQFE"
+        
+        var ex = Assert.Throws<PqfFileException>(() => PqfFileReader.OpenForValidation(buffer));
+        Assert.Equal(PqfRefusalReason.FooterMagicInvalid, ex.Reason);
+    }
+
+    [Fact]
+    public void Reader_refuses_truncated_footer()
+    {
+        var header = BuildValidUnsignedHeader();
+        var encodedHeader = PostQuantum.FileFormat.Cbor.DeterministicCborEncoder.Encode(header);
+        
+        // Buffer too small for footer (only 10 bytes total)
+        var buffer = new byte[10 + encodedHeader.Length + 10]; // Only 10 bytes instead of 20-byte footer
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(buffer, 0x50514631);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(4), 0x0001);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(buffer.AsSpan(6), (uint)encodedHeader.Length);
+        encodedHeader.CopyTo(buffer.AsMemory(10));
 
         var ex = Assert.Throws<PqfFileException>(() => PqfFileReader.OpenForValidation(buffer));
         Assert.Equal(PqfRefusalReason.TruncationDetected, ex.Reason);
-    }
-
-    [Fact(Skip = "PHASE 2.5 - Detailed truncation validation deferred")]
-    public void Reader_refuses_signed_file_wrong_header_signature_length()
-    {
-        // This test is skipped - signature length validation is part of Phase 2.5+
-        // Phase 2.4 focuses on structural presence only
     }
 
     private static PostQuantum.FileFormat.Cbor.CborValue BuildValidUnsignedHeader()
@@ -120,24 +138,24 @@ public sealed class SignatureStructure_RefusalTests
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(buffer.AsSpan(6), (uint)headerCbor.Length);
         headerCbor.CopyTo(buffer.AsMemory(10));
 
-        // Footer (no signature for unsigned)
-        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(buffer.AsSpan(10 + headerCbor.Length), 0x50514645); // "PQFE"
-        System.Buffers.Binary.BinaryPrimitives.WriteInt64BigEndian(buffer.AsSpan(10 + headerCbor.Length + 4), 0);
-        System.Buffers.Binary.BinaryPrimitives.WriteInt64BigEndian(buffer.AsSpan(10 + headerCbor.Length + 12), 0);
+        // Footer
+        var footerOffset = 10 + headerCbor.Length;
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(buffer.AsSpan(footerOffset), 0x50514645); // "PQFE"
+        System.Buffers.Binary.BinaryPrimitives.WriteInt64BigEndian(buffer.AsSpan(footerOffset + 4), 0); // chunk count
+        System.Buffers.Binary.BinaryPrimitives.WriteInt64BigEndian(buffer.AsSpan(footerOffset + 12), 0); // plaintext bytes
         return buffer;
     }
 
-    private static byte[] BuildSignedFileWithSignatures(System.ReadOnlyMemory<byte> headerCbor)
+    private static byte[] BuildSignedFileFullStructure(System.ReadOnlyMemory<byte> headerCbor)
     {
-        var buffer = new byte[10 + headerCbor.Length + 4691 + 20 + 4691]; // sig=4691, footer=20, sig=4691
+        var buffer = new byte[10 + headerCbor.Length + 4691 + 20 + 4691];
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(buffer, 0x50514631); // "PQF1"
         System.Buffers.Binary.BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(4), 0x0001);
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(buffer.AsSpan(6), (uint)headerCbor.Length);
         headerCbor.CopyTo(buffer.AsMemory(10));
 
-        // Header signature (placeholder)
+        // Header signature (zeros)
         var headerSigOffset = 10 + headerCbor.Length;
-        // Leave zeros for header sig
 
         // Footer
         var footerOffset = headerSigOffset + 4691;
@@ -145,25 +163,7 @@ public sealed class SignatureStructure_RefusalTests
         System.Buffers.Binary.BinaryPrimitives.WriteInt64BigEndian(buffer.AsSpan(footerOffset + 4), 0);
         System.Buffers.Binary.BinaryPrimitives.WriteInt64BigEndian(buffer.AsSpan(footerOffset + 12), 0);
 
-        // File signature (placeholder)
-        // Leave zeros for file sig
-
+        // File signature (zeros)
         return buffer;
     }
-
-    private static byte[] BuildSignedFileMissingHeaderSignature(System.ReadOnlyMemory<byte> headerCbor)
-    {
-        var buffer = new byte[10 + headerCbor.Length + 20]; // Missing signatures
-        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(buffer, 0x50514631); // "PQF1"
-        System.Buffers.Binary.BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(4), 0x0001);
-        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(buffer.AsSpan(6), (uint)headerCbor.Length);
-        headerCbor.CopyTo(buffer.AsMemory(10));
-
-        // Footer (no signatures)
-        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(buffer.AsSpan(10 + headerCbor.Length), 0x50514645); // "PQFE"
-        System.Buffers.Binary.BinaryPrimitives.WriteInt64BigEndian(buffer.AsSpan(10 + headerCbor.Length + 4), 0);
-        System.Buffers.Binary.BinaryPrimitives.WriteInt64BigEndian(buffer.AsSpan(10 + headerCbor.Length + 12), 0);
-        return buffer;
-    }
-
 }

@@ -144,7 +144,7 @@ public sealed class PqfFileReader
         if (this.Header.Signer != null)
         {
             // Signed file: must have both signatures (4691 bytes each)
-            if (bytes.Length < currentOffset +4691)
+            if (bytes.Length < currentOffset + 4691)
             {
                 throw new PqfFileException(
                     PqfRefusalReason.TruncationDetected,
@@ -156,7 +156,62 @@ public sealed class PqfFileReader
             currentOffset += 4691;
         }
 
-        // Defer further parsing to Phase 2.5+ (chunk reader, footer, file signature)
-        throw new NotImplementedException("PHASE 2.5: Signature and chunk parsing not yet implemented");
+        // Validate footer structure (20 bytes)
+        if (bytes.Length < currentOffset + 20)
+        {
+            throw new PqfFileException(
+                PqfRefusalReason.TruncationDetected,
+                "File truncated: missing footer (20 bytes)",
+                offset: currentOffset);
+        }
+
+        var footerOffset = currentOffset;
+        var footerSpan = bytes.Slice(footerOffset, 20);
+
+        // Validate footer magic
+        if (!footerSpan[..4].SequenceEqual("PQFE"u8))
+        {
+            throw new PqfFileException(
+                PqfRefusalReason.FooterMagicInvalid,
+                "Footer magic mismatch: expected 'PQFE'",
+                offset: footerOffset);
+        }
+
+        // Parse footer: chunk count and plaintext bytes
+        var chunkCount = BinaryPrimitives.ReadInt64BigEndian(footerSpan[4..12]);
+        var plaintextBytes = BinaryPrimitives.ReadInt64BigEndian(footerSpan[12..20]);
+
+        var footer = new PqfFooter { TotalChunkCount = chunkCount, TotalPlaintextBytes = plaintextBytes };
+        this.TotalChunkCount = chunkCount;
+        this.ReportedPlaintextBytes = plaintextBytes;
+
+        currentOffset += 20;
+
+        // Validate file signature if signed
+        if (this.Header.Signer != null)
+        {
+            if (bytes.Length < currentOffset + 4691)
+            {
+                throw new PqfFileException(
+                    PqfRefusalReason.TruncationDetected,
+                    "Signed file missing file signature (4691 bytes)",
+                    offset: currentOffset);
+            }
+
+            this.FileSignatureBytes = fileBytes.Slice(currentOffset, 4691);
+            currentOffset += 4691;
+        }
+
+        // Verify EOF
+        if (bytes.Length != currentOffset)
+        {
+            throw new PqfFileException(
+                PqfRefusalReason.TrailingDataAfterExpectedEof,
+                $"File has trailing data: {bytes.Length - currentOffset} extra bytes",
+                offset: currentOffset);
+        }
+
+        // Defer further processing to Phase 3+ (decryption and signature verification)
+        throw new NotImplementedException("PHASE 3: Decryption and signature verification");
     }
 }
