@@ -139,7 +139,24 @@ public sealed class PqfFileReader
                 $"Header schema parsing failed: {ex.Message}");
         }
 
-        // Defer further parsing to Phase 2.4+ (signature structure, chunks, etc.)
-        throw new NotImplementedException("PHASE 2.4: Signature structure and chunk parsing not yet implemented");
+        // Validate signature structural presence/absence
+        var currentOffset = 10 + (int)headerLength;
+        if (this.Header.Signer != null)
+        {
+            // Signed file: must have both signatures (4691 bytes each)
+            if (bytes.Length < currentOffset +4691)
+            {
+                throw new PqfFileException(
+                    PqfRefusalReason.TruncationDetected,
+                    "Signed file missing header signature (4691 bytes)",
+                    offset: currentOffset);
+            }
+
+            this.HeaderSignatureBytes = fileBytes.Slice(currentOffset, 4691);
+            currentOffset += 4691;
+        }
+
+        // Defer further parsing to Phase 2.5+ (chunk reader, footer, file signature)
+        throw new NotImplementedException("PHASE 2.5: Signature and chunk parsing not yet implemented");
     }
 }
