@@ -3,12 +3,13 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
+    <RollForward>Major</RollForward>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>pqf</ToolCommandName>
     <PackageId>PostQuantum.FileFormat.Cli</PackageId>
-    <Version>0.4.0-preview.1</Version>
+    <Version>0.4.0-preview.2</Version>
     <Authors>PostQuantum.FileFormat contributors</Authors>
     <Description>pqf is the command-line tool for the Post-Quantum File Format (PQF): a hybrid post-quantum (X25519+ML-KEM-1024 / Ed25519+ML-DSA-87) encrypted file container with a deterministic CBOR header, fail-closed parser, and reference test vectors. EXPERIMENTAL preview; not externally audited; do not use to protect irreplaceable data.</Description>
     <PackageTags>post-quantum;cryptography;encryption;file-format;ml-kem;ml-dsa;hybrid;cbor;cli;dotnet-tool</PackageTags>
@@ -17,7 +18,7 @@
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageReleaseNotes>0.4.0-preview.1: first public preview of the pqf CLI. Spec v0.3.1, .NET 8, fail-closed parser, conformance test vectors. EXPERIMENTAL; not externally audited.</PackageReleaseNotes>
+    <PackageReleaseNotes>0.4.0-preview.2: enable major-version roll-forward so the tool runs on .NET 8, 9, or 10 without DOTNET_ROLL_FORWARD=Major. No behavior change. EXPERIMENTAL; not externally audited.</PackageReleaseNotes>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
