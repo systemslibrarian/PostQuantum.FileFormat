@@ -172,38 +172,109 @@ public static class CliApp
 
         using var identity = await KeyFileStore.ReadEncryptionIdentityAsync(identityPath).ConfigureAwait(false);
         await using var input = System.IO.File.OpenRead(inputPath);
-        await using var output = System.IO.File.Create(outputPath);
 
-        if (string.Equals(mode, "authenticated", StringComparison.OrdinalIgnoreCase))
+        // Atomic-write pattern: decrypt to a sibling .partial file, rename it to
+        // the final output path only on success, delete it on any failure. This
+        // prevents a verification refusal from leaving partially-decrypted
+        // plaintext at the user-visible --out path. Without this, a downstream
+        // script that gates on file existence (rather than CLI exit code) could
+        // consume rejected bytes.
+        var partialPath = outputPath + ".partial";
+        if (System.IO.File.Exists(partialPath))
         {
-            try
+            System.IO.File.Delete(partialPath);
+        }
+
+        var partialOptions = new FileStreamOptions
+        {
+            Mode = FileMode.CreateNew,
+            Access = FileAccess.Write,
+            Share = FileShare.None,
+        };
+        if (!OperatingSystem.IsWindows())
+        {
+            // Decrypted plaintext should not be world-readable on a multi-user
+            // host even briefly during the .partial -> final rename window.
+            partialOptions.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+        }
+
+        var success = false;
+        long? streamingEmittedBytes = null;
+        try
+        {
+            await using (var output = new FileStream(partialPath, partialOptions))
             {
-                await PqfDecryptor.DecryptAsync(input, output, identity).ConfigureAwait(false);
+                if (string.Equals(mode, "authenticated", StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        await PqfDecryptor.DecryptAsync(input, output, identity).ConfigureAwait(false);
+                        success = true;
+                    }
+                    catch (PqfFileException ex)
+                    {
+                        await stderr.WriteLineAsync($"Decryption refused ({ex.Reason}): {ex.Message}").ConfigureAwait(false);
+                        return ExitCodes.Refused;
+                    }
+                }
+                else if (string.Equals(mode, "streaming", StringComparison.OrdinalIgnoreCase))
+                {
+                    var result = await PqfDecryptor.DecryptStreamingAsync(input, output, identity).ConfigureAwait(false);
+                    if (!result.Success)
+                    {
+                        var postHoc = result.PostHocAuthenticationFailed ? " post-hoc-auth=true" : string.Empty;
+                        await stderr.WriteLineAsync($"Decryption refused ({result.FailureReason}) emitted={result.PlaintextBytesEmitted}{postHoc}").ConfigureAwait(false);
+                        await stderr.WriteLineAsync($"Discarded {result.PlaintextBytesEmitted} bytes; output not written to {outputPath}.").ConfigureAwait(false);
+                        return ExitCodes.Refused;
+                    }
+                    streamingEmittedBytes = result.PlaintextBytesEmitted;
+                    success = true;
+                }
+                else
+                {
+                    return FailUsage(stderr, "--mode must be either 'authenticated' or 'streaming'.");
+                }
+            }
+
+            // FileStream is now disposed; promote the .partial file to the final
+            // output path. Both modes share this path so the success contract is
+            // identical: nothing appears at outputPath until verification passed.
+            if (System.IO.File.Exists(outputPath))
+            {
+                System.IO.File.Delete(outputPath);
+            }
+            System.IO.File.Move(partialPath, outputPath);
+
+            if (streamingEmittedBytes is { } emitted)
+            {
+                await stdout.WriteLineAsync($"Decrypted {inputPath} -> {outputPath} ({emitted} bytes)").ConfigureAwait(false);
+            }
+            else
+            {
                 await stdout.WriteLineAsync($"Decrypted {inputPath} -> {outputPath}").ConfigureAwait(false);
-                return ExitCodes.Success;
             }
-            catch (PqfFileException ex)
-            {
-                await stderr.WriteLineAsync($"Decryption refused ({ex.Reason}): {ex.Message}").ConfigureAwait(false);
-                return ExitCodes.Refused;
-            }
+            return ExitCodes.Success;
         }
-
-        if (string.Equals(mode, "streaming", StringComparison.OrdinalIgnoreCase))
+        finally
         {
-            var result = await PqfDecryptor.DecryptStreamingAsync(input, output, identity).ConfigureAwait(false);
-            if (result.Success)
+            if (!success)
             {
-                await stdout.WriteLineAsync($"Decrypted {inputPath} -> {outputPath} ({result.PlaintextBytesEmitted} bytes)").ConfigureAwait(false);
-                return ExitCodes.Success;
+                try
+                {
+                    if (System.IO.File.Exists(partialPath))
+                    {
+                        System.IO.File.Delete(partialPath);
+                    }
+                }
+                catch
+                {
+                    // Best-effort cleanup. The non-zero exit code is the
+                    // authoritative signal; a leftover .partial file is annoying
+                    // but does not violate fail-closed (it has the .partial
+                    // suffix and is not at the user-visible --out path).
+                }
             }
-
-            var postHoc = result.PostHocAuthenticationFailed ? " post-hoc-auth=true" : string.Empty;
-            await stderr.WriteLineAsync($"Decryption refused ({result.FailureReason}) emitted={result.PlaintextBytesEmitted}{postHoc}").ConfigureAwait(false);
-            return ExitCodes.Refused;
         }
-
-        return FailUsage(stderr, "--mode must be either 'authenticated' or 'streaming'.");
     }
 
     private static async Task<int> RunInspectAsync(string[] args, TextWriter stdout, TextWriter stderr)

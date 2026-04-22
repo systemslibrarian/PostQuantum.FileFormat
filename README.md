@@ -193,7 +193,7 @@ PQF is **spec-first, not implementation-first.** The specification is the source
 
 PQF is explicitly seeking review from cryptographers and post-quantum implementers on the following normative sections of [spec/PQF-SPEC-v1.md](spec/PQF-SPEC-v1.md):
 
-- **§2.4** — Hybrid KEM combiner construction (HKDF salt/IKM layout, label binding).
+- **§2.4** — Hybrid KEM combiner construction (HKDF salt/IKM layout, label binding). Note: the spec uses two distinct strings here — `pqf1-concat-extract-v1` is the algorithm-identifier value placed in the CBOR header field `alg.combiner`; `PQF1-combiner-v1` is the literal byte prefix of the HKDF salt. Both are intentional; the in-tree reference implementation lives in [`HkdfCombiner.cs`](src/PostQuantum.FileFormat/Crypto/HkdfCombiner.cs).
 - **§5.2** — Per-chunk AEAD construction and AAD binding (`file_id || chunk_index || is_final`).
 - **§6.2 step 9** — File-signature coverage composition (`file_id || sha256(chunks) || footer`).
 - **§6.3 step 7** — ML-KEM implicit-rejection timing and recipient-trial constant-time posture.

@@ -44,7 +44,28 @@ internal sealed class AuthenticatedModeDecryptor
             if (reader.ReportedPlaintextBytes > (ulong)BufferToDiskThresholdBytes)
             {
                 tempFilePath = Path.Combine(Path.GetTempPath(), $"pqf-auth-{Guid.NewGuid():N}.tmp");
-                buffer = new FileStream(tempFilePath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 4096, FileOptions.SequentialScan);
+
+                // Pre-verification plaintext is buffered to disk only above the
+                // memory threshold. Two defensive measures here:
+                //   1. UnixCreateMode = 0600 so other users on a multi-user host
+                //      cannot read the buffered plaintext between the time it is
+                //      written and the time the file is deleted.
+                //   2. FileOptions.DeleteOnClose so the OS unlinks the file even
+                //      if this process is killed mid-decrypt and never reaches
+                //      the manual cleanup in the finally block.
+                var bufferOptions = new FileStreamOptions
+                {
+                    Mode = FileMode.CreateNew,
+                    Access = FileAccess.ReadWrite,
+                    Share = FileShare.None,
+                    BufferSize = 4096,
+                    Options = FileOptions.SequentialScan | FileOptions.DeleteOnClose,
+                };
+                if (!OperatingSystem.IsWindows())
+                {
+                    bufferOptions.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+                }
+                buffer = new FileStream(tempFilePath, bufferOptions);
             }
             else
             {
@@ -106,6 +127,11 @@ internal sealed class AuthenticatedModeDecryptor
             SecureZero.Clear(selectedDek);
             if (buffer is not null)
             {
+                // FileStream constructed with FileOptions.DeleteOnClose unlinks
+                // tempFilePath here. MemoryStream dispose is sufficient for the
+                // in-memory path. The previous explicit File.Delete is no longer
+                // needed but kept for defense-in-depth in case the OS does not
+                // honour DeleteOnClose semantics (e.g. on some network FS).
                 await buffer.DisposeAsync().ConfigureAwait(false);
             }
 
@@ -114,6 +140,10 @@ internal sealed class AuthenticatedModeDecryptor
                 try
                 {
                     System.IO.File.Delete(tempFilePath);
+                }
+                catch (FileNotFoundException)
+                {
+                    // Expected: DeleteOnClose already removed it.
                 }
                 catch
                 {

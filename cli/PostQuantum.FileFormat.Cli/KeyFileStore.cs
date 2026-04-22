@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using PostQuantum.FileFormat.Armor;
 using PostQuantum.FileFormat.Keys;
 
@@ -6,6 +7,21 @@ namespace PostQuantum.FileFormat.Cli;
 
 internal static class KeyFileStore
 {
+    // Strict JSON: case-sensitive, reject unknown fields. The CLI is the only
+    // consumer of these files and the format is fully specified, so silently
+    // accepting "x25519PrivateKey" / "X25519privateKey" / extra fields would
+    // mask malformed identity files instead of refusing them.
+    private static readonly JsonSerializerOptions WriteOptions = new()
+    {
+        WriteIndented = true,
+    };
+
+    private static readonly JsonSerializerOptions ReadOptions = new()
+    {
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+        PropertyNameCaseInsensitive = false,
+    };
+
     public static async Task WriteEncryptionIdentityAsync(PqfIdentity identity, string publicKeyPath, string privateKeyPath)
     {
         var publicPem = PemArmor.ArmorPublicKey(identity.PublicKey);
@@ -74,17 +90,31 @@ internal static class KeyFileStore
 
     private static async Task WriteJsonAsync<T>(string path, T value)
     {
-        var json = JsonSerializer.Serialize(value, new JsonSerializerOptions { WriteIndented = true });
-        await System.IO.File.WriteAllTextAsync(path, json + Environment.NewLine).ConfigureAwait(false);
+        var json = JsonSerializer.Serialize(value, WriteOptions) + Environment.NewLine;
+        var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+
+        // Private-key files must not be world-readable on Unix. On Windows the
+        // default ACL inheritance is acceptable for a per-user CLI tool; if the
+        // user wants stricter ACLs they can set them on the parent directory.
+        var options = new FileStreamOptions
+        {
+            Mode = FileMode.Create,
+            Access = FileAccess.Write,
+            Share = FileShare.None,
+        };
+        if (!OperatingSystem.IsWindows())
+        {
+            options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+        }
+
+        await using var stream = new FileStream(path, options);
+        await stream.WriteAsync(bytes).ConfigureAwait(false);
     }
 
     private static async Task<T?> ReadJsonAsync<T>(string path)
     {
         var json = await System.IO.File.ReadAllTextAsync(path).ConfigureAwait(false);
-        return JsonSerializer.Deserialize<T>(json, new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true,
-        });
+        return JsonSerializer.Deserialize<T>(json, ReadOptions);
     }
 
     private sealed record EncryptionIdentityFile(

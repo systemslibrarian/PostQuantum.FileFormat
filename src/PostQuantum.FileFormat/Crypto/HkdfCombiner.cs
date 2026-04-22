@@ -60,8 +60,21 @@ public static class HkdfCombiner
         ChunkInfoPrefix.CopyTo(info.AsSpan());
         BinaryPrimitives.WriteUInt64BigEndian(info.AsSpan(ChunkInfoPrefix.Length, 8), chunkIndex);
 
-        var chunkKey = HKDF.Expand(HashAlgorithmName.SHA256, dek.ToArray(), 32, info);
-        SecureZero.Clear(info);
-        return chunkKey;
+        // HKDF.Expand's byte[]-PRK overload requires a managed array; copying the
+        // DEK into a local buffer that we explicitly zero afterwards prevents the
+        // secret from lingering on the GC heap (the issue with .ToArray() was that
+        // the resulting array was unreachable but unzeroed until collection).
+        var prk = new byte[32];
+        try
+        {
+            dek.CopyTo(prk);
+            var chunkKey = HKDF.Expand(HashAlgorithmName.SHA256, prk, 32, info);
+            SecureZero.Clear(info);
+            return chunkKey;
+        }
+        finally
+        {
+            SecureZero.Clear(prk);
+        }
     }
 }
