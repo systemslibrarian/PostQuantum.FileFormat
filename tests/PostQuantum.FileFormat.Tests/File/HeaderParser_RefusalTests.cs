@@ -47,4 +47,52 @@ public sealed class HeaderParser_RefusalTests
         var ex = Assert.Throws<PqfFileException>(() => PqfFileReader.OpenForValidation(bytes));
         Assert.Equal(PqfRefusalReason.TruncationDetected, ex.Reason);
     }
+
+    [Fact]
+    public void Reader_refuses_non_shortest_integer_in_header()
+    {
+        var bytes = SampleFiles.BuildMalformed_NonShortestIntegerInHeader();
+        var ex = Assert.Throws<PqfFileException>(() => PqfFileReader.OpenForValidation(bytes));
+        Assert.Equal(PqfRefusalReason.NonDeterministicCborEncoding, ex.Reason);
+    }
+
+    [Fact]
+    public void Reader_refuses_indefinite_length_map_in_header()
+    {
+        var bytes = SampleFiles.BuildMalformed_IndefiniteLengthMapInHeader();
+        var ex = Assert.Throws<PqfFileException>(() => PqfFileReader.OpenForValidation(bytes));
+        Assert.Equal(PqfRefusalReason.NonDeterministicCborEncoding, ex.Reason);
+    }
+
+    [Fact]
+    public void Reader_refuses_out_of_order_map_keys_in_header()
+    {
+        var bytes = SampleFiles.BuildMalformed_OutOfOrderMapKeysInHeader();
+        var ex = Assert.Throws<PqfFileException>(() => PqfFileReader.OpenForValidation(bytes));
+        Assert.Equal(PqfRefusalReason.NonDeterministicCborEncoding, ex.Reason);
+    }
+
+    [Fact]
+    public void Reader_refuses_duplicate_keys_in_header()
+    {
+        var bytes = SampleFiles.BuildMalformed_DuplicateKeysInHeader();
+        var ex = Assert.Throws<PqfFileException>(() => PqfFileReader.OpenForValidation(bytes));
+        Assert.Equal(PqfRefusalReason.DuplicateCborKey, ex.Reason);
+    }
+
+    [Fact]
+    public void Reader_refuses_floating_point_in_header()
+    {
+        var bytes = SampleFiles.BuildMalformed_FloatInHeader();
+        var ex = Assert.Throws<PqfFileException>(() => PqfFileReader.OpenForValidation(bytes));
+        Assert.Equal(PqfRefusalReason.NonDeterministicCborEncoding, ex.Reason);
+    }
+
+    [Fact]
+    public void Reader_refuses_trailing_bytes_after_cbor_header()
+    {
+        var bytes = SampleFiles.BuildMalformed_TrailingBytesAfterHeader();
+        var ex = Assert.Throws<PqfFileException>(() => PqfFileReader.OpenForValidation(bytes));
+        Assert.Equal(PqfRefusalReason.TrailingDataAfterExpectedEof, ex.Reason);
+    }
 }

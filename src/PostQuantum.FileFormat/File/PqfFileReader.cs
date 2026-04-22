@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using PostQuantum.FileFormat.Cbor;
 
 namespace PostQuantum.FileFormat.File;
 
@@ -79,7 +80,49 @@ public sealed class PqfFileReader
                 offset: 6);
         }
 
-        // Defer further parsing to Phase 2.2+ (CBOR validation, schema, etc.)
-        throw new NotImplementedException("PHASE 2.2: CBOR validation and header parsing not yet implemented");
+        // Extract header CBOR bytes
+        if (bytes.Length < 10 + headerLength)
+        {
+            throw new PqfFileException(
+                PqfRefusalReason.TruncationDetected,
+                $"File truncated: expected {10 + headerLength} bytes, got {bytes.Length}",
+                offset: 10);
+        }
+
+        var headerCborBytes = fileBytes.Slice(10, (int)headerLength);
+
+        // Validate CBOR determinism and parse header
+        try
+        {
+            _ = DeterministicCborValidator.ParseStrict(headerCborBytes);
+        }
+        catch (CborValidationException ex)
+        {
+            var reason = ex.Message switch
+            {
+                var msg when msg.Contains("non-shortest") => PqfRefusalReason.NonDeterministicCborEncoding,
+                var msg when msg.Contains("indefinite") => PqfRefusalReason.NonDeterministicCborEncoding,
+                var msg when msg.Contains("Trailing bytes") => PqfRefusalReason.TrailingDataAfterExpectedEof,
+                var msg when msg.Contains("duplicate") => PqfRefusalReason.DuplicateCborKey,
+                var msg when msg.Contains("order") => PqfRefusalReason.NonDeterministicCborEncoding,
+                var msg when msg.Contains("floating") => PqfRefusalReason.NonDeterministicCborEncoding,
+                _ => PqfRefusalReason.NonDeterministicCborEncoding,
+            };
+            throw new PqfFileException(reason, $"CBOR validation failed: {ex.Message}", offset: 10);
+        }
+        catch (PqfFileException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            throw new PqfFileException(
+                PqfRefusalReason.NonDeterministicCborEncoding,
+                $"CBOR parsing failed: {ex.Message}",
+                offset: 10);
+        }
+
+        // Defer further parsing to Phase 2.3+ (schema validation, etc.)
+        throw new NotImplementedException("PHASE 2.3: Header schema validation not yet implemented");
     }
 }
