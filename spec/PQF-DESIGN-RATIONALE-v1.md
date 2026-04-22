@@ -589,6 +589,46 @@ Places where the author is uncertain and would value external input:
    different key format. Is this the right call, or should v1 keys have
    been more generic?
 
+6. **Domain separation between header signature and file signature.**
+   The same hybrid signing key signs two distinct messages: the
+   deterministic CBOR header bytes (header signature, §6.2 step 5) and
+   `file_id || sha256(chunks) || footer` (file signature, §6.2 step 9).
+   The two messages are structurally distinct and short, so the author
+   does not see an obvious cross-protocol path that would let one
+   signature be replayed as the other. Even so, prepending an explicit
+   domain-separation prefix — e.g. `"PQF1-header-sig-v1"` and
+   `"PQF1-file-sig-v1"` — to each message before it reaches the signer
+   would close the question by construction. This would be a v1.1
+   wire-format change (signature inputs change, but key formats and
+   ciphertext layout do not). Should the spec adopt this now, or wait
+   for a concrete attack?
+
+7. **Footer integrity on unsigned files.** When a file is signed the
+   20-byte footer is covered by the file signature (§6.2 step 9). When
+   a file is unsigned the footer is only protected by the parser's
+   structural checks: footer magic, `chunk_count` matching the observed
+   number of chunks, and `plaintext_bytes` matching the observed
+   plaintext length. An attacker who cannot break AEAD cannot forge a
+   footer that matches an existing chunk stream, so the practical
+   exposure is limited to denial of service (the parser refuses), not
+   silent acceptance of a tampered length. A future v1.1 could AEAD-
+   bind the footer with a separate per-file key derived from the DEK
+   to give unsigned files cryptographic footer integrity. This would
+   be a wire-format change; gathering reviewer opinion on whether the
+   added complexity is warranted before committing.
+
+8. **Constant-time guarantees of the underlying primitives.** PQF
+   specifies the high-level cryptographic constructions but is silent
+   on the constant-time / side-channel properties of the KEM, AEAD,
+   and signature primitives — those are properties of the implementer's
+   chosen library. The .NET reference implementation uses BouncyCastle
+   for ML-KEM-1024 and ML-DSA-87, which is managed C# code without
+   claimed constant-time guarantees against power, EM, or
+   microarchitectural side channels. Should the spec require
+   conforming implementations to document the side-channel posture of
+   their dependencies, even though it cannot meaningfully require a
+   particular posture?
+
 ---
 
 ## 12. Acknowledgments

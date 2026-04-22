@@ -153,6 +153,7 @@ SECURITY.md                      Security-reporting policy and supported version
 - **Authenticity:** present only when the file is signed. When signed, both Ed25519 and ML-DSA-87 must verify; either failure refuses the file.
 - **No anonymity guarantees.** PQF protects file contents at rest; it does not hide that a `.pqf` file exists, who the recipients are, or transport-layer metadata.
 - **Metadata is visible.** The header is unencrypted and includes algorithm IDs, recipient public-key material, signer public keys (when signed), `chunk_size`, and `created` timestamp. Treat it as visible.
+- **Side-channel posture is inherited from the underlying primitives.** The reference implementation is wired to verify before release and to run the recipient trial in constant time over recipient blocks, but ML-KEM-1024 and ML-DSA-87 are provided by [BouncyCastle for .NET](https://www.bouncycastle.org/csharp/), which is managed C# code without claimed constant-time guarantees against power, EM, or microarchitectural side channels. PQF inherits whatever side-channel properties those implementations provide. A pure-.NET BCL provider will be evaluated as the BCL ships first-class ML-KEM / ML-DSA in future runtimes.
 - **Implementation correctness matters.** The format is fail-closed by design, but security still depends on a correct implementation of the spec, the underlying KEM/AEAD/signature primitives, and the host OS's randomness source.
 
 ## Conformance philosophy
@@ -198,6 +199,8 @@ PQF is explicitly seeking review from cryptographers and post-quantum implemente
 - **§6.2 step 9** — File-signature coverage composition (`file_id || sha256(chunks) || footer`).
 - **§6.3 step 7** — ML-KEM implicit-rejection timing and recipient-trial constant-time posture.
 - **§6.4** — Authenticated vs Streaming Mode failure-signaling contract.
+
+A running list of spec-level questions the author would value review on — including the open question of whether header-signature and file-signature messages should carry distinct domain-separation prefixes (§6.2), and whether the footer should be AEAD-bound on unsigned files — lives in [`spec/PQF-DESIGN-RATIONALE-v1.md` §11](./spec/PQF-DESIGN-RATIONALE-v1.md#11-open-questions-the-author-acknowledges).
 
 If you find an issue, please open a [GitHub Issue](https://github.com/systemslibrarian/PostQuantum.FileFormat/issues) or start a thread under [Discussions](https://github.com/systemslibrarian/PostQuantum.FileFormat/discussions). Reproducible refusal cases are especially welcome and will be folded into the negative test-vector set.
 
