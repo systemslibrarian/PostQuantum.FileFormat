@@ -42,9 +42,9 @@ now — the "harvest now, decrypt later" threat model.
 |---|---|
 | Specification | DRAFT v0.3.1 — seeking cryptographic review |
 | Design rationale | DRAFT v0.1.0 |
-| Reference implementation (.NET) | Phase 1 complete (foundations) |
-| Test vectors | Not yet generated |
-| CLI tool (`pqf`) | Not yet started |
+| Reference implementation (.NET) | Phases 1-5 complete locally |
+| Test vectors | v1 set generated (14 positive, 22 negative) |
+| CLI tool (`pqf`) | Implemented (`keygen`, `encrypt`, `decrypt`, `inspect`, `fingerprint`) |
 | Second-language implementation | Not yet |
 | External cryptographic review | Not yet |
 | v1.0.0 release | Blocked on all of the above |
@@ -59,9 +59,9 @@ drafts may not be readable by the final v1 release.
 /spec/
   PQF-SPEC-v1.md              — The normative specification
   PQF-DESIGN-RATIONALE-v1.md  — Companion rationale document
-/src/                          — Reference .NET implementation (coming)
-/cli/                          — `pqf` command-line tool (coming)
-/test-vectors/                 — Conformance test vectors (coming)
+/src/                          — Reference .NET implementation
+/cli/                          — `pqf` command-line tool
+/test-vectors/                 — Conformance test vectors
 /docs/                         — Additional documentation
 README.md                      — This file
 LICENSE                        — MIT
