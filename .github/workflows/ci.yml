@@ -87,3 +87,32 @@ jobs:
             --identity enc.key --mode authenticated
           diff -q sample.bin sample.out.bin
           echo "roundtrip OK on .NET ${{ matrix.runtime }}"
+
+  rust-conformance:
+    name: Cross-impl conformance (Rust reader vs .NET vectors)
+    needs: build-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust (stable, minimal profile)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry & target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            impl/rust/pqf-reader/target
+          key: ${{ runner.os }}-rust-pqf-reader-${{ hashFiles('impl/rust/pqf-reader/Cargo.toml') }}
+
+      - name: Build pqf-conformance
+        working-directory: impl/rust/pqf-reader
+        run: cargo build --release --bin pqf-conformance
+
+      - name: Run cross-implementation conformance
+        working-directory: impl/rust/pqf-reader
+        run: cargo run --release --bin pqf-conformance
+

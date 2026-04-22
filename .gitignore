@@ -1,6 +1,9 @@
 # Build outputs
 **/bin/
 **/obj/
+# Rust binary source dirs (Cargo's `src/bin/` convention) must not be ignored.
+!impl/rust/**/src/bin/
+!impl/rust/**/src/bin/**
 
 # NuGet pack output
 artifacts/

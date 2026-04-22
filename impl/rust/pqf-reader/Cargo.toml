@@ -1,0 +1,44 @@
+[package]
+name = "pqf-reader"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Independent Rust reader implementation of the PostQuantum.FileFormat (PQF) v1 specification."
+repository = "https://github.com/systemslibrarian/PostQuantum.FileFormat"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "pqf-conformance"
+path = "src/bin/conformance.rs"
+
+[dependencies]
+# Hybrid KEM
+x25519-dalek = { version = "2.0", features = ["static_secrets"] }
+ml-kem = "0.2"
+
+# Hybrid signatures
+ed25519-dalek = { version = "2.1", features = ["std"] }
+ml-dsa = "0.0.4"
+
+# AEAD + hashing + KDF
+aes-gcm = "0.10"
+sha2 = "0.10"
+hkdf = "0.12"
+
+# Encoding utilities
+base64 = "0.22"
+hex = "0.4"
+
+# Manifest deserialization for the conformance binary
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Generic byte / type traits used by the RustCrypto crates
+generic-array = "0.14"
+typenum = "1.17"
+
+[features]
+default = []
