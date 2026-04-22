@@ -24,6 +24,21 @@ public sealed class PqfPublicKey
 
     public ReadOnlyMemory<byte> MlKem1024PublicKey => _mlKem1024PublicKey.AsMemory();
 
+    public static PqfPublicKey FromParts(ReadOnlySpan<byte> x25519PublicKey, ReadOnlySpan<byte> mlKem1024PublicKey)
+    {
+        if (x25519PublicKey.Length != X25519Length)
+        {
+            throw new KeyFormatException($"X25519 public key must be exactly {X25519Length} bytes.");
+        }
+
+        if (mlKem1024PublicKey.Length != MlKem1024Length)
+        {
+            throw new KeyFormatException($"ML-KEM-1024 public key must be exactly {MlKem1024Length} bytes.");
+        }
+
+        return new PqfPublicKey(Version, x25519PublicKey.ToArray(), mlKem1024PublicKey.ToArray());
+    }
+
     public static PqfPublicKey FromCanonicalBinary(ReadOnlyMemory<byte> bytes)
     {
         if (bytes.Length != CanonicalByteLength)

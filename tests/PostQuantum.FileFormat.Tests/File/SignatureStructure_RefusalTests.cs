@@ -12,9 +12,8 @@ public sealed class SignatureStructure_RefusalTests
         var encodedHeader = PostQuantum.FileFormat.Cbor.DeterministicCborEncoder.Encode(header);
         var buffer = BuildSignedFileWithSignatures(encodedHeader);
         
-        // Expect to reach Phase 3 (decryption not implemented)
-        var ex = Assert.Throws<NotImplementedException>(() => PqfFileReader.OpenForValidation(buffer));
-        Assert.Contains("PHASE 3", ex.Message);
+        var reader = PqfFileReader.OpenForValidation(buffer);
+        Assert.NotNull(reader);
     }
 
     [Fact]
@@ -24,9 +23,8 @@ public sealed class SignatureStructure_RefusalTests
         var encodedHeader = PostQuantum.FileFormat.Cbor.DeterministicCborEncoder.Encode(header);
         var buffer = BuildUnsignedFileWithFooter(encodedHeader);
 
-        // Expect to reach Phase 3 (decryption not implemented)
-        var ex = Assert.Throws<NotImplementedException>(() => PqfFileReader.OpenForValidation(buffer));
-        Assert.Contains("PHASE 3", ex.Message);
+        var reader = PqfFileReader.OpenForValidation(buffer);
+        Assert.NotNull(reader);
     }
 
     [Fact]

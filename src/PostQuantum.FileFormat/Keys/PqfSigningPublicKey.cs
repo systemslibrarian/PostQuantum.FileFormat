@@ -24,6 +24,21 @@ public sealed class PqfSigningPublicKey
 
     public ReadOnlyMemory<byte> MlDsa87PublicKey => _mlDsa87PublicKey.AsMemory();
 
+    public static PqfSigningPublicKey FromParts(ReadOnlySpan<byte> ed25519PublicKey, ReadOnlySpan<byte> mlDsa87PublicKey)
+    {
+        if (ed25519PublicKey.Length != Ed25519Length)
+        {
+            throw new KeyFormatException($"Ed25519 public key must be exactly {Ed25519Length} bytes.");
+        }
+
+        if (mlDsa87PublicKey.Length != MlDsa87Length)
+        {
+            throw new KeyFormatException($"ML-DSA-87 public key must be exactly {MlDsa87Length} bytes.");
+        }
+
+        return new PqfSigningPublicKey(Version, ed25519PublicKey.ToArray(), mlDsa87PublicKey.ToArray());
+    }
+
     public static PqfSigningPublicKey FromCanonicalBinary(ReadOnlyMemory<byte> bytes)
     {
         if (bytes.Length != CanonicalByteLength)

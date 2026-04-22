@@ -19,9 +19,9 @@ public sealed class Integration_ValidationTests
         var encodedHeader = DeterministicCborEncoder.Encode(header);
         var file = BuildUnsignedFileWithFooter(encodedHeader);
 
-        // File should pass all Phase 2 checks and reach Phase 3 (not yet implemented)
-        var ex = Assert.Throws<NotImplementedException>(() => PqfFileReader.OpenForValidation(file));
-        Assert.Contains("PHASE 3", ex.Message);
+        // File should pass validation.
+        var reader = PqfFileReader.OpenForValidation(file);
+        Assert.NotNull(reader);
 
         // Verify file structure: should have complete footer at expected offset
         var footerOffset = 10 + encodedHeader.Length;
@@ -86,8 +86,8 @@ public sealed class Integration_ValidationTests
         System.Buffers.Binary.BinaryPrimitives.WriteInt64BigEndian(buffer.AsSpan(footerOffset + 4), 0);
         System.Buffers.Binary.BinaryPrimitives.WriteInt64BigEndian(buffer.AsSpan(footerOffset + 12), 0);
 
-        var ex = Assert.Throws<NotImplementedException>(() => PqfFileReader.OpenForValidation(buffer));
-        Assert.Contains("PHASE 3", ex.Message);
+        var reader = PqfFileReader.OpenForValidation(buffer);
+        Assert.NotNull(reader);
     }
 
     private static CborValue BuildValidUnsignedHeader()

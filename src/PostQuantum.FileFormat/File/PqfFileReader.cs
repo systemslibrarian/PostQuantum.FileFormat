@@ -1,27 +1,35 @@
 using System.Buffers.Binary;
+using System.Security.Cryptography;
 using PostQuantum.FileFormat.Cbor;
+using PostQuantum.FileFormat.Crypto;
+using PostQuantum.FileFormat.Keys;
 
 namespace PostQuantum.FileFormat.File;
 
 /// <summary>
-/// Streaming PQF file parser with fail-closed validation. Validates all structural
-/// and schema constraints but defers cryptographic operations to Phase 3+.
+/// PQF file parser with fail-closed validation and Phase 3 cryptographic decrypt support.
 /// </summary>
 public sealed class PqfFileReader
 {
-    private const string PqfMagic = "PQF1";
     private const ushort PqfVersion = 0x0001;
     private const uint MaxHeaderLength = 1_048_576; // 1 MiB per spec §3
+    private const int HybridSignatureLength = 4691;
+
+    private sealed record ChunkInfo(int HeaderOffset, int DataOffset, int CiphertextLength, bool IsFinal, int PlaintextLength);
+
+    private readonly List<ChunkInfo> _chunks = new();
+    private ReadOnlyMemory<byte> _headerBytes;
+    private ReadOnlyMemory<byte> _footerBytes;
 
     public PqfFileHeader Header { get; private set; } = null!;
     public ReadOnlyMemory<byte> HeaderSignatureBytes { get; private set; }
     public ReadOnlyMemory<byte> FileSignatureBytes { get; private set; }
     public long TotalChunkCount { get; private set; }
     public long ReportedPlaintextBytes { get; private set; }
+    public ReadOnlyMemory<byte> FileBytes { get; private set; }
 
     /// <summary>
-    /// Open and validate a PQF file for reading. Validates all structural constraints
-    /// but defers decryption and signature verification to Phase 3+.
+    /// Open and validate a PQF file for reading.
     /// Throws PqfFileException on any refusal condition.
     /// </summary>
     public static PqfFileReader OpenForValidation(ReadOnlyMemory<byte> fileBytes)
@@ -31,8 +39,125 @@ public sealed class PqfFileReader
         return reader;
     }
 
+    public static async Task DecryptAsync(
+        Stream source,
+        Stream destination,
+        PqfIdentity identity,
+        ICryptoProvider? provider = null,
+        CancellationToken cancellationToken = default)
+    {
+        using var input = new MemoryStream();
+        await source.CopyToAsync(input, cancellationToken).ConfigureAwait(false);
+        var fileBytes = input.ToArray();
+        var reader = OpenForValidation(fileBytes);
+
+        var crypto = provider ?? CryptoProvider.Detect();
+        var hybridKem = new HybridKem(crypto);
+        var signer = new HybridSigner(crypto);
+
+        // Header signature verification when signer block is present
+        if (reader.Header.Signer is not null)
+        {
+            var signingPublic = PqfSigningPublicKey.FromParts(reader.Header.Signer.ClassicalPub, reader.Header.Signer.PqcPub);
+            if (!signer.Verify(signingPublic, reader._headerBytes.Span, reader.HeaderSignatureBytes.Span))
+            {
+                throw new PqfFileException(PqfRefusalReason.SignatureVerificationFailure, "Header signature verification failed");
+            }
+        }
+
+        byte[]? selectedDek = null;
+
+        // Constant-time discipline: attempt all recipient blocks, retain first success.
+        for (var i = 0; i < reader.Header.Recipients.Count; i++)
+        {
+            var recipient = reader.Header.Recipients[i];
+            var kek = hybridKem.Decapsulate(identity, recipient.ClassicalEpk, recipient.PqcCt, reader.Header.FileId, (uint)i);
+            var dek = DekWrapper.Unwrap(kek, recipient.WrappedDekNonce, recipient.WrappedDek, reader.Header.FileId);
+            SecureZero.Clear(kek);
+
+            if (dek is not null)
+            {
+                if (selectedDek is null)
+                {
+                    selectedDek = dek;
+                }
+                else
+                {
+                    SecureZero.Clear(dek);
+                }
+            }
+        }
+
+        if (selectedDek is null)
+        {
+            throw new PqfFileException(PqfRefusalReason.IdentityMatchesNoRecipient, "Identity does not match any recipient");
+        }
+
+        var chunkHasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        long observedPlaintext = 0;
+
+        try
+        {
+            for (var i = 0; i < reader._chunks.Count; i++)
+            {
+                var chunk = reader._chunks[i];
+                var onDiskChunkBytes = reader.FileBytes.Slice(chunk.HeaderOffset, 5 + chunk.CiphertextLength);
+                chunkHasher.AppendData(onDiskChunkBytes.Span);
+
+                var plaintextBuffer = new byte[chunk.PlaintextLength];
+                var written = ChunkCipher.DecryptChunk(
+                    selectedDek,
+                    (ulong)i,
+                    chunk.IsFinal,
+                    reader.Header.FileId,
+                    reader.FileBytes.Slice(chunk.DataOffset, chunk.CiphertextLength).Span,
+                    plaintextBuffer);
+
+                if (written < 0)
+                {
+                    throw new PqfFileException(PqfRefusalReason.AeadTagFailure, $"Chunk {i} failed AEAD authentication");
+                }
+
+                await destination.WriteAsync(plaintextBuffer.AsMemory(0, written), cancellationToken).ConfigureAwait(false);
+                observedPlaintext += written;
+                SecureZero.Clear(plaintextBuffer);
+            }
+
+            if (observedPlaintext != reader.ReportedPlaintextBytes)
+            {
+                throw new PqfFileException(
+                    PqfRefusalReason.FooterPlaintextBytesMismatch,
+                    $"Footer plaintext bytes mismatch: expected {reader.ReportedPlaintextBytes}, observed {observedPlaintext}");
+            }
+
+            if (reader.Header.Signer is not null)
+            {
+                var digest = chunkHasher.GetHashAndReset();
+                var message = new byte[16 + 32 + 20];
+                reader.Header.FileId.CopyTo(message, 0);
+                digest.CopyTo(message, 16);
+                reader._footerBytes.CopyTo(message.AsMemory(48));
+
+                var signingPublic = PqfSigningPublicKey.FromParts(reader.Header.Signer.ClassicalPub, reader.Header.Signer.PqcPub);
+                if (!signer.Verify(signingPublic, message, reader.FileSignatureBytes.Span))
+                {
+                    throw new PqfFileException(PqfRefusalReason.SignatureVerificationFailure, "File signature verification failed");
+                }
+
+                SecureZero.Clear(message);
+                SecureZero.Clear(digest);
+            }
+        }
+        finally
+        {
+            SecureZero.Clear(selectedDek);
+            chunkHasher.Dispose();
+        }
+    }
+
     private void ValidateAndParse(ReadOnlyMemory<byte> fileBytes)
     {
+        FileBytes = fileBytes;
         var bytes = fileBytes.Span;
 
         // Offset 0: Magic "PQF1" (4 bytes)
@@ -90,6 +215,7 @@ public sealed class PqfFileReader
         }
 
         var headerCborBytes = fileBytes.Slice(10, (int)headerLength);
+        _headerBytes = headerCborBytes;
 
         // Validate CBOR determinism and parse header
         try
@@ -139,12 +265,13 @@ public sealed class PqfFileReader
                 $"Header schema parsing failed: {ex.Message}");
         }
 
-        // Validate signature structural presence/absence
         var currentOffset = 10 + (int)headerLength;
+
+        // Validate signature structural presence/absence
         if (this.Header.Signer != null)
         {
             // Signed file: must have both signatures (4691 bytes each)
-            if (bytes.Length < currentOffset + 4691)
+            if (bytes.Length < currentOffset + HybridSignatureLength)
             {
                 throw new PqfFileException(
                     PqfRefusalReason.TruncationDetected,
@@ -152,21 +279,33 @@ public sealed class PqfFileReader
                     offset: currentOffset);
             }
 
-            this.HeaderSignatureBytes = fileBytes.Slice(currentOffset, 4691);
-            currentOffset += 4691;
+            this.HeaderSignatureBytes = fileBytes.Slice(currentOffset, HybridSignatureLength);
+            currentOffset += HybridSignatureLength;
         }
 
-        // Validate footer structure (20 bytes)
-        if (bytes.Length < currentOffset + 20)
+        var trailingBytesNeeded = 20 + (this.Header.Signer != null ? HybridSignatureLength : 0);
+        if (bytes.Length < currentOffset + trailingBytesNeeded)
         {
             throw new PqfFileException(
                 PqfRefusalReason.TruncationDetected,
-                "File truncated: missing footer (20 bytes)",
+                "File truncated before footer/signature section",
                 offset: currentOffset);
         }
 
-        var footerOffset = currentOffset;
+        var payloadEnd = bytes.Length - trailingBytesNeeded;
+        ParseChunks(fileBytes, ref currentOffset, payloadEnd);
+
+        if (currentOffset != payloadEnd)
+        {
+            throw new PqfFileException(
+                PqfRefusalReason.TrailingDataAfterExpectedEof,
+                "Trailing chunk data found before footer",
+                offset: currentOffset);
+        }
+
+        var footerOffset = payloadEnd;
         var footerSpan = bytes.Slice(footerOffset, 20);
+        _footerBytes = fileBytes.Slice(footerOffset, 20);
 
         // Validate footer magic
         if (!footerSpan[..4].SequenceEqual("PQFE"u8))
@@ -177,20 +316,41 @@ public sealed class PqfFileReader
                 offset: footerOffset);
         }
 
-        // Parse footer: chunk count and plaintext bytes
+        // Parse footer: chunk count and plaintext bytes.
         var chunkCount = BinaryPrimitives.ReadInt64BigEndian(footerSpan[4..12]);
         var plaintextBytes = BinaryPrimitives.ReadInt64BigEndian(footerSpan[12..20]);
 
-        var footer = new PqfFooter { TotalChunkCount = chunkCount, TotalPlaintextBytes = plaintextBytes };
         this.TotalChunkCount = chunkCount;
         this.ReportedPlaintextBytes = plaintextBytes;
 
-        currentOffset += 20;
+        if (chunkCount != _chunks.Count)
+        {
+            throw new PqfFileException(
+                PqfRefusalReason.FooterChunkCountMismatch,
+                $"Footer chunk count mismatch: expected {chunkCount}, observed {_chunks.Count}",
+                offset: footerOffset + 4);
+        }
+
+        long observedPlaintextBytes = 0;
+        foreach (var chunk in _chunks)
+        {
+            observedPlaintextBytes += chunk.PlaintextLength;
+        }
+
+        if (plaintextBytes != observedPlaintextBytes)
+        {
+            throw new PqfFileException(
+                PqfRefusalReason.FooterPlaintextBytesMismatch,
+                $"Footer plaintext bytes mismatch: expected {plaintextBytes}, observed {observedPlaintextBytes}",
+                offset: footerOffset + 12);
+        }
+
+        currentOffset = footerOffset + 20;
 
         // Validate file signature if signed
         if (this.Header.Signer != null)
         {
-            if (bytes.Length < currentOffset + 4691)
+            if (bytes.Length < currentOffset + HybridSignatureLength)
             {
                 throw new PqfFileException(
                     PqfRefusalReason.TruncationDetected,
@@ -198,8 +358,8 @@ public sealed class PqfFileReader
                     offset: currentOffset);
             }
 
-            this.FileSignatureBytes = fileBytes.Slice(currentOffset, 4691);
-            currentOffset += 4691;
+            this.FileSignatureBytes = fileBytes.Slice(currentOffset, HybridSignatureLength);
+            currentOffset += HybridSignatureLength;
         }
 
         // Verify EOF
@@ -211,7 +371,88 @@ public sealed class PqfFileReader
                 offset: currentOffset);
         }
 
-        // Defer further processing to Phase 3+ (decryption and signature verification)
-        throw new NotImplementedException("PHASE 3: Decryption and signature verification");
+    }
+
+    private void ParseChunks(ReadOnlyMemory<byte> fileBytes, ref int offset, int payloadEnd)
+    {
+        var bytes = fileBytes.Span;
+        _chunks.Clear();
+        var sawFinal = false;
+
+        while (offset < payloadEnd)
+        {
+            if (payloadEnd - offset < 5)
+            {
+                throw new PqfFileException(
+                    PqfRefusalReason.TruncationDetected,
+                    "Chunk header truncated",
+                    offset: offset);
+            }
+
+            var chunkHeaderOffset = offset;
+            var ciphertextLength = (int)BinaryPrimitives.ReadUInt32BigEndian(bytes.Slice(offset, 4));
+            var flags = bytes[offset + 4];
+            var isFinal = (flags & 0x01) != 0;
+
+            if ((flags & 0xFE) != 0)
+            {
+                throw new PqfFileException(
+                    PqfRefusalReason.ReservedChunkFlagBitsSet,
+                    "Reserved chunk flag bits must be zero",
+                    offset: offset + 4);
+            }
+
+            offset += 5;
+
+            if (ciphertextLength < 16)
+            {
+                throw new PqfFileException(
+                    PqfRefusalReason.TruncationDetected,
+                    "Chunk ciphertext must include at least a 16-byte AES-GCM tag",
+                    offset: chunkHeaderOffset);
+            }
+
+            if (ciphertextLength > payloadEnd - offset)
+            {
+                throw new PqfFileException(
+                    PqfRefusalReason.ChunkLengthExceedsRemainingBytes,
+                    "Chunk length exceeds remaining payload bytes",
+                    offset: chunkHeaderOffset);
+            }
+
+            var dataOffset = offset;
+            var plaintextLength = ciphertextLength - 16;
+
+            _chunks.Add(new ChunkInfo(
+                HeaderOffset: chunkHeaderOffset,
+                DataOffset: dataOffset,
+                CiphertextLength: ciphertextLength,
+                IsFinal: isFinal,
+                PlaintextLength: plaintextLength));
+
+            offset += ciphertextLength;
+
+            if (isFinal)
+            {
+                sawFinal = true;
+                break;
+            }
+        }
+
+        if (_chunks.Count > 0 && !sawFinal)
+        {
+            throw new PqfFileException(
+                PqfRefusalReason.TrailingDataAfterExpectedEof,
+                "No final chunk flag found before footer",
+                offset: offset);
+        }
+
+        if (sawFinal && offset != payloadEnd)
+        {
+            throw new PqfFileException(
+                PqfRefusalReason.TrailingDataAfterExpectedEof,
+                "Data found between final chunk and footer",
+                offset: offset);
+        }
     }
 }

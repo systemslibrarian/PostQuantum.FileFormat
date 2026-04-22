@@ -15,8 +15,8 @@ public sealed class HappyPath_ValidationTests
     {
         var header = BuildValidUnsignedHeader();
         var file = BuildUnsignedFileWithFooter(header);
-        var ex = Assert.Throws<NotImplementedException>(() => PqfFileReader.OpenForValidation(file));
-        Assert.Contains("PHASE 3", ex.Message);
+        var reader = PqfFileReader.OpenForValidation(file);
+        Assert.NotNull(reader);
     }
 
     [Fact]
@@ -24,8 +24,8 @@ public sealed class HappyPath_ValidationTests
     {
         var header = BuildValidSignedHeader();
         var file = BuildSignedFileFullStructure(header);
-        var ex = Assert.Throws<NotImplementedException>(() => PqfFileReader.OpenForValidation(file));
-        Assert.Contains("PHASE 3", ex.Message);
+        var reader = PqfFileReader.OpenForValidation(file);
+        Assert.NotNull(reader);
     }
 
     [Fact]
@@ -33,8 +33,8 @@ public sealed class HappyPath_ValidationTests
     {
         var header = BuildUnsignedHeaderWithMultipleRecipients(2);
         var file = BuildUnsignedFileWithFooter(header);
-        var ex = Assert.Throws<NotImplementedException>(() => PqfFileReader.OpenForValidation(file));
-        Assert.Contains("PHASE 3", ex.Message);
+        var reader = PqfFileReader.OpenForValidation(file);
+        Assert.NotNull(reader);
     }
 
     [Fact]
@@ -42,8 +42,8 @@ public sealed class HappyPath_ValidationTests
     {
         var header = BuildUnsignedHeaderWithChunkSize(16777216);
         var file = BuildUnsignedFileWithFooter(header);
-        var ex = Assert.Throws<NotImplementedException>(() => PqfFileReader.OpenForValidation(file));
-        Assert.Contains("PHASE 3", ex.Message);
+        var reader = PqfFileReader.OpenForValidation(file);
+        Assert.NotNull(reader);
     }
 
     private static CborValue BuildValidUnsignedHeader()
