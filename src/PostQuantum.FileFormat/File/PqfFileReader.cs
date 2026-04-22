@@ -122,7 +122,24 @@ public sealed class PqfFileReader
                 offset: 10);
         }
 
-        // Defer further parsing to Phase 2.3+ (schema validation, etc.)
-        throw new NotImplementedException("PHASE 2.3: Header schema validation not yet implemented");
+        // Parse and validate header schema
+        try
+        {
+            var headerValue = DeterministicCborValidator.ParseStrict(headerCborBytes);
+            this.Header = HeaderCborReader.Parse(headerValue);
+        }
+        catch (PqfFileException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            throw new PqfFileException(
+                PqfRefusalReason.NonDeterministicCborEncoding,
+                $"Header schema parsing failed: {ex.Message}");
+        }
+
+        // Defer further parsing to Phase 2.4+ (signature structure, chunks, etc.)
+        throw new NotImplementedException("PHASE 2.4: Signature structure and chunk parsing not yet implemented");
     }
 }
