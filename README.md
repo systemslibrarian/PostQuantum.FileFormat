@@ -4,6 +4,25 @@ PQF is a specification and reference implementation for hybrid post-quantum encr
 
 [![CI](https://github.com/systemslibrarian/PostQuantum.FileFormat/actions/workflows/ci.yml/badge.svg)](https://github.com/systemslibrarian/PostQuantum.FileFormat/actions/workflows/ci.yml)
 
+## Quick start
+
+Install the preview CLI as a [.NET global tool](https://learn.microsoft.com/dotnet/core/tools/global-tools) (requires .NET 8 SDK):
+
+```bash
+dotnet tool install --global PostQuantum.FileFormat.Cli --prerelease
+```
+
+Then encrypt and decrypt a file end-to-end:
+
+```bash
+pqf keygen   --type encrypt --public-out alice.pub.pem --private-out alice.key.json
+pqf encrypt  --in secret.pdf --out secret.pqf --recipient alice.pub.pem
+pqf inspect  --in secret.pqf
+pqf decrypt  --in secret.pqf --out secret.dec.pdf --identity alice.key.json --mode authenticated
+```
+
+> **Preview:** `pqf` is published as `0.4.0-preview.*`. The wire format is still draft v0.3.1 — files produced by previews are not guaranteed to be readable by `v1.0.0`.
+
 ## What this project is
 
 - A **file format specification** ([spec/PQF-SPEC-v1.md](spec/PQF-SPEC-v1.md), draft v0.3.1).
@@ -127,6 +146,18 @@ SPEC-CHECKLIST.md                Per-section conformance checklist
 Existing file-encryption formats either predate the post-quantum transition or treat post-quantum primitives as an optional extension. PQF starts from the assumption that confidential files written today may need to remain confidential against quantum-capable adversaries decades from now ("harvest now, decrypt later"), and that this should be the default rather than a bolt-on.
 
 PQF is **spec-first, not implementation-first.** The specification is the source of truth; the .NET reference implementation exists to prove the spec is implementable and to provide a conformance baseline for a future second-language implementation. Where the implementation and spec disagree, the spec wins.
+
+## Cryptographic review wanted
+
+PQF is explicitly seeking review from cryptographers and post-quantum implementers on the following normative sections of [spec/PQF-SPEC-v1.md](spec/PQF-SPEC-v1.md):
+
+- **§2.4** — Hybrid KEM combiner construction (HKDF salt/IKM layout, label binding).
+- **§5.2** — Per-chunk AEAD construction and AAD binding (`file_id || chunk_index || is_final`).
+- **§6.2 step 9** — File-signature coverage composition (`file_id || sha256(chunks) || footer`).
+- **§6.3 step 7** — ML-KEM implicit-rejection timing and recipient-trial constant-time posture.
+- **§6.4** — Authenticated vs Streaming Mode failure-signaling contract.
+
+If you find an issue, please open a [GitHub Issue](https://github.com/systemslibrarian/PostQuantum.FileFormat/issues) or start a thread under [Discussions](https://github.com/systemslibrarian/PostQuantum.FileFormat/discussions). Reproducible refusal cases are especially welcome and will be folded into the negative test-vector set.
 
 ## License
 
