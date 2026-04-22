@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore PostQuantum.FileFormat.sln
+
+      - name: Build
+        run: dotnet build PostQuantum.FileFormat.sln --no-restore -c Release
+
+      - name: Test
+        run: dotnet test PostQuantum.FileFormat.sln --no-build -c Release --verbosity normal
