@@ -15,7 +15,7 @@ public sealed class PqfFileReader
     private const uint MaxHeaderLength = 1_048_576; // 1 MiB per spec §3
     private const int HybridSignatureLength = 4691;
 
-    private sealed record ChunkInfo(int HeaderOffset, int DataOffset, int CiphertextLength, bool IsFinal, int PlaintextLength);
+    internal sealed record ChunkInfo(int HeaderOffset, int DataOffset, int CiphertextLength, bool IsFinal, int PlaintextLength);
 
     private readonly List<ChunkInfo> _chunks = new();
     private ReadOnlyMemory<byte> _headerBytes;
@@ -27,6 +27,9 @@ public sealed class PqfFileReader
     public long TotalChunkCount { get; private set; }
     public long ReportedPlaintextBytes { get; private set; }
     public ReadOnlyMemory<byte> FileBytes { get; private set; }
+    internal ReadOnlyMemory<byte> HeaderBytes => _headerBytes;
+    internal ReadOnlyMemory<byte> FooterBytes => _footerBytes;
+    internal IReadOnlyList<ChunkInfo> Chunks => _chunks;
 
     /// <summary>
     /// Open and validate a PQF file for reading.
@@ -46,113 +49,14 @@ public sealed class PqfFileReader
         ICryptoProvider? provider = null,
         CancellationToken cancellationToken = default)
     {
-        using var input = new MemoryStream();
-        await source.CopyToAsync(input, cancellationToken).ConfigureAwait(false);
-        var fileBytes = input.ToArray();
-        var reader = OpenForValidation(fileBytes);
-
-        var crypto = provider ?? CryptoProvider.Detect();
-        var hybridKem = new HybridKem(crypto);
-        var signer = new HybridSigner(crypto);
-
-        // Header signature verification when signer block is present
-        if (reader.Header.Signer is not null)
+        if (provider is null)
         {
-            var signingPublic = PqfSigningPublicKey.FromParts(reader.Header.Signer.ClassicalPub, reader.Header.Signer.PqcPub);
-            if (!signer.Verify(signingPublic, reader._headerBytes.Span, reader.HeaderSignatureBytes.Span))
-            {
-                throw new PqfFileException(PqfRefusalReason.SignatureVerificationFailure, "Header signature verification failed");
-            }
+            await PqfDecryptor.DecryptAsync(source, destination, identity, cancellationToken).ConfigureAwait(false);
+            return;
         }
 
-        byte[]? selectedDek = null;
-
-        // Constant-time discipline: attempt all recipient blocks, retain first success.
-        for (var i = 0; i < reader.Header.Recipients.Count; i++)
-        {
-            var recipient = reader.Header.Recipients[i];
-            var kek = hybridKem.Decapsulate(identity, recipient.ClassicalEpk, recipient.PqcCt, reader.Header.FileId, (uint)i);
-            var dek = DekWrapper.Unwrap(kek, recipient.WrappedDekNonce, recipient.WrappedDek, reader.Header.FileId);
-            SecureZero.Clear(kek);
-
-            if (dek is not null)
-            {
-                if (selectedDek is null)
-                {
-                    selectedDek = dek;
-                }
-                else
-                {
-                    SecureZero.Clear(dek);
-                }
-            }
-        }
-
-        if (selectedDek is null)
-        {
-            throw new PqfFileException(PqfRefusalReason.IdentityMatchesNoRecipient, "Identity does not match any recipient");
-        }
-
-        var chunkHasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        long observedPlaintext = 0;
-
-        try
-        {
-            for (var i = 0; i < reader._chunks.Count; i++)
-            {
-                var chunk = reader._chunks[i];
-                var onDiskChunkBytes = reader.FileBytes.Slice(chunk.HeaderOffset, 5 + chunk.CiphertextLength);
-                chunkHasher.AppendData(onDiskChunkBytes.Span);
-
-                var plaintextBuffer = new byte[chunk.PlaintextLength];
-                var written = ChunkCipher.DecryptChunk(
-                    selectedDek,
-                    (ulong)i,
-                    chunk.IsFinal,
-                    reader.Header.FileId,
-                    reader.FileBytes.Slice(chunk.DataOffset, chunk.CiphertextLength).Span,
-                    plaintextBuffer);
-
-                if (written < 0)
-                {
-                    throw new PqfFileException(PqfRefusalReason.AeadTagFailure, $"Chunk {i} failed AEAD authentication");
-                }
-
-                await destination.WriteAsync(plaintextBuffer.AsMemory(0, written), cancellationToken).ConfigureAwait(false);
-                observedPlaintext += written;
-                SecureZero.Clear(plaintextBuffer);
-            }
-
-            if (observedPlaintext != reader.ReportedPlaintextBytes)
-            {
-                throw new PqfFileException(
-                    PqfRefusalReason.FooterPlaintextBytesMismatch,
-                    $"Footer plaintext bytes mismatch: expected {reader.ReportedPlaintextBytes}, observed {observedPlaintext}");
-            }
-
-            if (reader.Header.Signer is not null)
-            {
-                var digest = chunkHasher.GetHashAndReset();
-                var message = new byte[16 + 32 + 20];
-                reader.Header.FileId.CopyTo(message, 0);
-                digest.CopyTo(message, 16);
-                reader._footerBytes.CopyTo(message.AsMemory(48));
-
-                var signingPublic = PqfSigningPublicKey.FromParts(reader.Header.Signer.ClassicalPub, reader.Header.Signer.PqcPub);
-                if (!signer.Verify(signingPublic, message, reader.FileSignatureBytes.Span))
-                {
-                    throw new PqfFileException(PqfRefusalReason.SignatureVerificationFailure, "File signature verification failed");
-                }
-
-                SecureZero.Clear(message);
-                SecureZero.Clear(digest);
-            }
-        }
-        finally
-        {
-            SecureZero.Clear(selectedDek);
-            chunkHasher.Dispose();
-        }
+        var decryptor = new AuthenticatedModeDecryptor();
+        await decryptor.DecryptAsync(source, destination, identity, provider, cancellationToken).ConfigureAwait(false);
     }
 
     private void ValidateAndParse(ReadOnlyMemory<byte> fileBytes)

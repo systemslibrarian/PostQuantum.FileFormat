@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using PostQuantum.FileFormat.Cbor;
 using PostQuantum.FileFormat.Crypto;
 using PostQuantum.FileFormat.Keys;
+using PostQuantum.FileFormat.TestSupport;
 
 namespace PostQuantum.FileFormat.File;
 
@@ -19,6 +20,29 @@ public static class PqfFileWriter
         ICryptoProvider? provider = null,
         CancellationToken cancellationToken = default)
     {
+        await EncryptAsync(
+            plaintext,
+            destination,
+            recipients,
+            signer,
+            chunkSize,
+            provider,
+            randomness: null,
+            createdUtc: null,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    internal static async Task EncryptAsync(
+        Stream plaintext,
+        Stream destination,
+        IReadOnlyList<PqfPublicKey> recipients,
+        PqfSigningIdentity? signer,
+        int chunkSize,
+        ICryptoProvider? provider,
+        InjectableRandomness? randomness,
+        DateTimeOffset? createdUtc,
+        CancellationToken cancellationToken)
+    {
         if (recipients is null || recipients.Count == 0)
         {
             throw new ArgumentException("At least one recipient is required", nameof(recipients));
@@ -30,11 +54,34 @@ public static class PqfFileWriter
         }
 
         var crypto = provider ?? CryptoProvider.Detect();
+
+        if (randomness is not null)
+        {
+            if (crypto is BouncyCastleCryptoProvider bc)
+            {
+                bc.SetInjectableRandomness(randomness);
+            }
+            else if (crypto is BclCryptoProvider bcl)
+            {
+                bcl.SetInjectableRandomness(randomness);
+            }
+        }
+
         var hybridKem = new HybridKem(crypto);
         var hybridSigner = new HybridSigner(crypto);
 
-        var dek = RandomNumberGenerator.GetBytes(32);
-        var fileId = RandomNumberGenerator.GetBytes(16);
+        var dek = new byte[32];
+        var fileId = new byte[16];
+        if (randomness is null)
+        {
+            RandomNumberGenerator.Fill(dek);
+            RandomNumberGenerator.Fill(fileId);
+        }
+        else
+        {
+            randomness.Fill(dek);
+            randomness.Fill(fileId);
+        }
         var recipientMaterials = new List<RecipientMaterial>(recipients.Count);
 
         try
@@ -42,13 +89,15 @@ public static class PqfFileWriter
             for (var i = 0; i < recipients.Count; i++)
             {
                 var (classicalEpk, pqcCiphertext, kek) = hybridKem.Encapsulate(recipients[i], fileId, (uint)i);
-                var (nonce, wrappedDek) = DekWrapper.Wrap(kek, dek, fileId);
+                var (nonce, wrappedDek) = randomness is null
+                    ? DekWrapper.Wrap(kek, dek, fileId)
+                    : WrapDeterministic(kek, dek, fileId, randomness);
                 SecureZero.Clear(kek);
 
                 recipientMaterials.Add(new RecipientMaterial(classicalEpk, pqcCiphertext, wrappedDek, nonce));
             }
 
-            var header = BuildHeader(fileId, chunkSize, recipientMaterials, signer?.PublicKey);
+            var header = BuildHeader(fileId, chunkSize, recipientMaterials, signer?.PublicKey, createdUtc);
             var headerBytes = DeterministicCborEncoder.Encode(header).ToArray();
 
             byte[]? headerSignature = null;
@@ -151,11 +200,23 @@ public static class PqfFileWriter
         }
     }
 
+    private static (byte[] nonce, byte[] wrappedDek) WrapDeterministic(
+        ReadOnlySpan<byte> kek,
+        ReadOnlySpan<byte> dek,
+        ReadOnlySpan<byte> fileId,
+        InjectableRandomness randomness)
+    {
+        var nonce = new byte[DekWrapper.WrapNonceLength];
+        randomness.Fill(nonce);
+        return DekWrapper.Wrap(kek, dek, fileId, nonce);
+    }
+
     private static CborValue BuildHeader(
         ReadOnlySpan<byte> fileId,
         int chunkSize,
         IReadOnlyList<RecipientMaterial> recipients,
-        PqfSigningPublicKey? signer)
+        PqfSigningPublicKey? signer,
+        DateTimeOffset? createdUtc)
     {
         var algMap = CborValue.Map(new List<KeyValuePair<CborValue, CborValue>>
         {
@@ -183,7 +244,7 @@ public static class PqfFileWriter
         {
             new(CborValue.Text("alg"), algMap),
             new(CborValue.Text("chunk_size"), CborValue.Uint((ulong)chunkSize)),
-            new(CborValue.Text("created"), CborValue.Tag(0, CborValue.Text(DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")))),
+            new(CborValue.Text("created"), CborValue.Tag(0, CborValue.Text((createdUtc ?? DateTimeOffset.UtcNow).ToString("yyyy-MM-ddTHH:mm:ssZ")))),
             new(CborValue.Text("file_id"), CborValue.Bytes(fileId.ToArray())),
             new(CborValue.Text("recipients"), CborValue.Array(recipientItems)),
         };

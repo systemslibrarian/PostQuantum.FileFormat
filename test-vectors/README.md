@@ -1,19 +1,15 @@
-# Test vectors (coming)
+# Test vectors
 
-This directory will contain the conformance test vector suite for PQF v1.
+The v1 conformance suite is generated under `test-vectors/v1/`.
 
-Each vector is a directory containing a `manifest.json` and binary fixture
-files. See spec §9.1 and §9.1.1 for the required vector list and file format.
+- `manifest.json` contains identity material and expected outcomes.
+- `cases/TV-001.pqf` through `cases/TV-014.pqf` are positive vectors.
+- `cases/TV-NEG-001.pqf` through `cases/TV-NEG-022.pqf` are negative vectors.
 
-**Required vectors:**
+Regenerate with:
 
-- 14 positive vectors (TV-001 through TV-014) covering all mode / count /
-  size combinations
-- 22 negative vectors (TV-NEG-001 through TV-NEG-022) covering every refusal
-  condition in spec §8.4
+```bash
+dotnet run --project tests/PostQuantum.FileFormat.TestVectors -- generate
+```
 
-Vectors are generated deterministically using injected randomness seeds, so
-any conforming implementation must produce byte-identical output when given
-the same inputs.
-
-See the [specification](../spec/PQF-SPEC-v1.md) §12 for authoritative detail.
+Vectors are deterministic using internal randomness injection in the library.

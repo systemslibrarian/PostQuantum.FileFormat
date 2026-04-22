@@ -12,6 +12,25 @@ public static class DekWrapper
         ReadOnlySpan<byte> dek,
         ReadOnlySpan<byte> fileId)
     {
+        var nonce = RandomNumberGenerator.GetBytes(WrapNonceLength);
+        return WrapWithNonce(kek, dek, fileId, nonce);
+    }
+
+    internal static (byte[] nonce, byte[] wrappedDek) Wrap(
+        ReadOnlySpan<byte> kek,
+        ReadOnlySpan<byte> dek,
+        ReadOnlySpan<byte> fileId,
+        ReadOnlySpan<byte> nonce)
+    {
+        return WrapWithNonce(kek, dek, fileId, nonce);
+    }
+
+    private static (byte[] nonce, byte[] wrappedDek) WrapWithNonce(
+        ReadOnlySpan<byte> kek,
+        ReadOnlySpan<byte> dek,
+        ReadOnlySpan<byte> fileId,
+        ReadOnlySpan<byte> nonce)
+    {
         if (kek.Length != 32)
         {
             throw new ArgumentException("KEK must be 32 bytes", nameof(kek));
@@ -27,12 +46,17 @@ public static class DekWrapper
             throw new ArgumentException("file_id must be 16 bytes", nameof(fileId));
         }
 
-        var nonce = RandomNumberGenerator.GetBytes(WrapNonceLength);
+        if (nonce.Length != WrapNonceLength)
+        {
+            throw new ArgumentException("nonce must be 12 bytes", nameof(nonce));
+        }
+
+        var nonceCopy = nonce.ToArray();
         var ciphertext = new byte[32];
         var tag = new byte[16];
 
         using var aes = new AesGcm(kek, tagSizeInBytes: 16);
-        aes.Encrypt(nonce, dek, ciphertext, tag, fileId);
+        aes.Encrypt(nonceCopy, dek, ciphertext, tag, fileId);
 
         var wrapped = new byte[WrappedDekLength];
         ciphertext.CopyTo(wrapped, 0);
@@ -41,7 +65,7 @@ public static class DekWrapper
         SecureZero.Clear(ciphertext);
         SecureZero.Clear(tag);
 
-        return (nonce, wrapped);
+        return (nonceCopy, wrapped);
     }
 
     public static byte[]? Unwrap(

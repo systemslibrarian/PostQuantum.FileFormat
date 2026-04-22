@@ -3,18 +3,60 @@ using Org.BouncyCastle.Crypto.Agreement;
 using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Kems;
 using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Crypto.Prng;
 using Org.BouncyCastle.Crypto.Signers;
 using Org.BouncyCastle.Security;
+using PostQuantum.FileFormat.TestSupport;
 
 namespace PostQuantum.FileFormat.Crypto;
 
 public sealed class BouncyCastleCryptoProvider : ICryptoProvider
 {
-    private static readonly SecureRandom Random = new SecureRandom();
+    private sealed class InjectableRandomGenerator : IRandomGenerator
+    {
+        private readonly InjectableRandomness _randomness;
+
+        public InjectableRandomGenerator(InjectableRandomness randomness)
+        {
+            _randomness = randomness;
+        }
+
+        public void AddSeedMaterial(byte[] seed) { }
+
+        public void AddSeedMaterial(ReadOnlySpan<byte> seed) { }
+
+        public void AddSeedMaterial(long seed) { }
+
+        public void NextBytes(byte[] bytes)
+        {
+            _randomness.Fill(bytes);
+        }
+
+        public void NextBytes(Span<byte> bytes)
+        {
+            _randomness.Fill(bytes);
+        }
+
+        public void NextBytes(byte[] bytes, int start, int len)
+        {
+            _randomness.Fill(bytes.AsSpan(start, len));
+        }
+    }
+
+    private InjectableRandomness? _injectableRandomness;
+
+    internal void SetInjectableRandomness(InjectableRandomness? randomness)
+    {
+        _injectableRandomness = randomness;
+    }
+
+    private SecureRandom CurrentRandom => _injectableRandomness is null
+        ? new SecureRandom()
+        : new SecureRandom(new InjectableRandomGenerator(_injectableRandomness));
 
     public (byte[] sk, byte[] pk) X25519GenerateKeyPair()
     {
-        var sk = new X25519PrivateKeyParameters(Random);
+        var sk = new X25519PrivateKeyParameters(CurrentRandom);
         var pk = sk.GeneratePublicKey();
         return (sk.GetEncoded(), pk.GetEncoded());
     }
@@ -33,7 +75,7 @@ public sealed class BouncyCastleCryptoProvider : ICryptoProvider
     public (byte[] sk, byte[] pk) MlKem1024GenerateKeyPair()
     {
         var generator = new MLKemKeyPairGenerator();
-        generator.Init(new MLKemKeyGenerationParameters(Random, MLKemParameters.ml_kem_1024));
+        generator.Init(new MLKemKeyGenerationParameters(CurrentRandom, MLKemParameters.ml_kem_1024));
         AsymmetricCipherKeyPair kp = generator.GenerateKeyPair();
         var sk = (MLKemPrivateKeyParameters)kp.Private;
         var pk = (MLKemPublicKeyParameters)kp.Public;
@@ -44,7 +86,7 @@ public sealed class BouncyCastleCryptoProvider : ICryptoProvider
     {
         var publicKey = MLKemPublicKeyParameters.FromEncoding(MLKemParameters.ml_kem_1024, peerPk.ToArray());
         var encapsulator = new MLKemEncapsulator(MLKemParameters.ml_kem_1024);
-        encapsulator.Init(publicKey);
+        encapsulator.Init(new ParametersWithRandom(publicKey, CurrentRandom));
 
         var sharedSecret = new byte[encapsulator.SecretLength];
         var ciphertext = new byte[encapsulator.EncapsulationLength];
@@ -65,7 +107,7 @@ public sealed class BouncyCastleCryptoProvider : ICryptoProvider
 
     public (byte[] sk, byte[] pk) Ed25519GenerateKeyPair()
     {
-        var sk = new Ed25519PrivateKeyParameters(Random);
+        var sk = new Ed25519PrivateKeyParameters(CurrentRandom);
         var pk = sk.GeneratePublicKey();
         return (sk.GetEncoded(), pk.GetEncoded());
     }
@@ -89,7 +131,7 @@ public sealed class BouncyCastleCryptoProvider : ICryptoProvider
     public (byte[] sk, byte[] pk) MlDsa87GenerateKeyPair()
     {
         var generator = new MLDsaKeyPairGenerator();
-        generator.Init(new MLDsaKeyGenerationParameters(Random, MLDsaParameters.ml_dsa_87));
+        generator.Init(new MLDsaKeyGenerationParameters(CurrentRandom, MLDsaParameters.ml_dsa_87));
         AsymmetricCipherKeyPair kp = generator.GenerateKeyPair();
         var sk = (MLDsaPrivateKeyParameters)kp.Private;
         var pk = (MLDsaPublicKeyParameters)kp.Public;

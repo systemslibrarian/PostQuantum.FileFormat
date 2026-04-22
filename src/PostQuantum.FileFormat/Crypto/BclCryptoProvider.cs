@@ -7,6 +7,11 @@ public sealed class BclCryptoProvider : ICryptoProvider
 {
     private readonly BouncyCastleCryptoProvider _inner = new();
 
+    internal void SetInjectableRandomness(TestSupport.InjectableRandomness? randomness)
+    {
+        _inner.SetInjectableRandomness(randomness);
+    }
+
     public static bool IsSupported => false;
 
     public (byte[] sk, byte[] pk) X25519GenerateKeyPair() => _inner.X25519GenerateKeyPair();
