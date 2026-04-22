@@ -6,7 +6,7 @@ PQF is a specification and reference implementation for hybrid post-quantum encr
 
 ## Quick start
 
-Install the preview CLI as a [.NET global tool](https://learn.microsoft.com/dotnet/core/tools/global-tools) (requires .NET 8 SDK):
+Install the preview CLI as a [.NET global tool](https://learn.microsoft.com/dotnet/core/tools/global-tools) (requires the .NET 8, 9, or 10 runtime):
 
 ```bash
 dotnet tool install --global PostQuantum.FileFormat.Cli --prerelease
@@ -123,21 +123,20 @@ SPEC-CHECKLIST.md                Per-section conformance checklist
 ## Current implementation limits
 
 - The `PqfFileReader.OpenForValidation` path validates a fully materialized byte buffer with `int`-indexed offsets, so the validator is currently bounded by single-buffer size on the active .NET runtime even though the wire format uses `uint64` footer counters. A streaming validator path is planned and will not require a wire-format change.
-- The `pqf` tool is published from this repository only; there is no external package distribution yet.
 
 ## Status
 
 - **Status:** Experimental. Specification is at draft v0.3.1.
 - **Not externally audited.** No independent cryptographic review has been performed.
 - **Not recommended for irreplaceable data.** The byte format is frozen only at v1.0.0; drafts may produce files that are not readable by the final release.
-- **No tagged releases yet.** The `main` branch is the current reference.
+- **Latest preview:** [`v0.4.0-preview.2`](https://github.com/systemslibrarian/PostQuantum.FileFormat/releases/tag/v0.4.0-preview.2) on `main`, published to NuGet as [`PostQuantum.FileFormat.Cli`](https://www.nuget.org/packages/PostQuantum.FileFormat.Cli).
 
 | Component | State |
 |---|---|
 | Specification | Draft v0.3.1 |
 | Reference implementation (.NET) | Phases 1–5 complete on `main`, CI green |
 | Test vectors | v1 set (positive + negative) committed |
-| CLI (`pqf`) | `keygen`, `encrypt`, `decrypt`, `inspect`, `fingerprint` |
+| CLI (`pqf`) | `keygen`, `encrypt`, `decrypt`, `inspect`, `fingerprint`; published as `0.4.0-preview.2` on NuGet.org |
 | Second-language implementation | Not started |
 | External cryptographic review | Not started |
 
