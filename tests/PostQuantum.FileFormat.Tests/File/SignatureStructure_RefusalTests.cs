@@ -38,11 +38,15 @@ public sealed class SignatureStructure_RefusalTests
         Assert.Equal(PqfRefusalReason.TruncationDetected, ex.Reason);
     }
 
-    [Fact(Skip = "PHASE 2.5 - Detailed truncation validation deferred")]
+    [Fact]
     public void Reader_refuses_signed_file_wrong_header_signature_length()
     {
-        // This test is skipped - signature length validation is part of Phase 2.5+
-        // Phase 2.4 focuses on structural presence only
+        var header = BuildValidSignedHeader();
+        var encodedHeader = PostQuantum.FileFormat.Cbor.DeterministicCborEncoder.Encode(header);
+        var buffer = BuildSignedFileWithShortHeaderSignature(encodedHeader);
+
+        var ex = Assert.Throws<PqfFileException>(() => PqfFileReader.OpenForValidation(buffer));
+        Assert.Equal(PqfRefusalReason.TruncationDetected, ex.Reason);
     }
 
     private static PostQuantum.FileFormat.Cbor.CborValue BuildValidUnsignedHeader()
@@ -120,8 +124,8 @@ public sealed class SignatureStructure_RefusalTests
 
         // Footer (no signature for unsigned)
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(buffer.AsSpan(10 + headerCbor.Length), 0x50514645); // "PQFE"
-        System.Buffers.Binary.BinaryPrimitives.WriteInt64BigEndian(buffer.AsSpan(10 + headerCbor.Length + 4), 0);
-        System.Buffers.Binary.BinaryPrimitives.WriteInt64BigEndian(buffer.AsSpan(10 + headerCbor.Length + 12), 0);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt64BigEndian(buffer.AsSpan(10 + headerCbor.Length + 4), 0);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt64BigEndian(buffer.AsSpan(10 + headerCbor.Length + 12), 0);
         return buffer;
     }
 
@@ -140,8 +144,8 @@ public sealed class SignatureStructure_RefusalTests
         // Footer
         var footerOffset = headerSigOffset + 4691;
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(buffer.AsSpan(footerOffset), 0x50514645); // "PQFE"
-        System.Buffers.Binary.BinaryPrimitives.WriteInt64BigEndian(buffer.AsSpan(footerOffset + 4), 0);
-        System.Buffers.Binary.BinaryPrimitives.WriteInt64BigEndian(buffer.AsSpan(footerOffset + 12), 0);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt64BigEndian(buffer.AsSpan(footerOffset + 4), 0);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt64BigEndian(buffer.AsSpan(footerOffset + 12), 0);
 
         // File signature (placeholder)
         // Leave zeros for file sig
@@ -159,8 +163,25 @@ public sealed class SignatureStructure_RefusalTests
 
         // Footer (no signatures)
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(buffer.AsSpan(10 + headerCbor.Length), 0x50514645); // "PQFE"
-        System.Buffers.Binary.BinaryPrimitives.WriteInt64BigEndian(buffer.AsSpan(10 + headerCbor.Length + 4), 0);
-        System.Buffers.Binary.BinaryPrimitives.WriteInt64BigEndian(buffer.AsSpan(10 + headerCbor.Length + 12), 0);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt64BigEndian(buffer.AsSpan(10 + headerCbor.Length + 4), 0);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt64BigEndian(buffer.AsSpan(10 + headerCbor.Length + 12), 0);
+        return buffer;
+    }
+
+    private static byte[] BuildSignedFileWithShortHeaderSignature(System.ReadOnlyMemory<byte> headerCbor)
+    {
+        var headerSignatureLength = 4690;
+        var fileSignatureLength = 4690;
+        var buffer = new byte[10 + headerCbor.Length + headerSignatureLength + 20 + fileSignatureLength];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(buffer, 0x50514631); // "PQF1"
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(4), 0x0001);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(buffer.AsSpan(6), (uint)headerCbor.Length);
+        headerCbor.CopyTo(buffer.AsMemory(10));
+
+        var footerOffset = 10 + headerCbor.Length + headerSignatureLength;
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(buffer.AsSpan(footerOffset), 0x50514645); // "PQFE"
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt64BigEndian(buffer.AsSpan(footerOffset + 4), 0);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt64BigEndian(buffer.AsSpan(footerOffset + 12), 0);
         return buffer;
     }
 
