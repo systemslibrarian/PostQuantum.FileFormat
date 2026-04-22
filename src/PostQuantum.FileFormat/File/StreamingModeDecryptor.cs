@@ -4,6 +4,15 @@ using PostQuantum.FileFormat.Keys;
 
 namespace PostQuantum.FileFormat.File;
 
+/// <summary>
+/// Streaming decryption: plaintext is emitted to the destination as each
+/// chunk is decrypted, with no full-file buffering. This is post-hoc
+/// authenticated — the file signature is still verified at the end and
+/// failure is reported via <see cref="PqfDecryptResult"/>, but bytes
+/// already emitted to the destination cannot be unwritten. Callers who
+/// require pre-disclosure authentication MUST use
+/// <see cref="AuthenticatedModeDecryptor"/> instead.
+/// </summary>
 internal sealed class StreamingModeDecryptor
 {
     [MustUseReturnValue]
@@ -14,44 +23,41 @@ internal sealed class StreamingModeDecryptor
         ICryptoProvider provider,
         CancellationToken ct)
     {
+        long emitted = 0;
         try
         {
-            using var input = new MemoryStream();
-            await source.CopyToAsync(input, ct).ConfigureAwait(false);
-            var fileBytes = input.ToArray();
-            var reader = PqfFileReader.OpenForValidation(fileBytes);
+            await using var pipeline = await PqfStreamingPipeline.OpenAsync(source, leaveOpen: true, ct).ConfigureAwait(false);
 
             var hybridKem = new HybridKem(provider);
-            var signer = new HybridSigner(provider);
+            var hybridSigner = new HybridSigner(provider);
 
-            if (reader.Header.Signer is not null)
+            if (pipeline.Header.Signer is not null)
             {
-                var signingPublic = PqfSigningPublicKey.FromParts(reader.Header.Signer.ClassicalPub, reader.Header.Signer.PqcPub);
-                if (!signer.Verify(signingPublic, reader.HeaderBytes.Span, reader.HeaderSignatureBytes.Span))
+                var signingPublic = PqfSigningPublicKey.FromParts(pipeline.Header.Signer.ClassicalPub, pipeline.Header.Signer.PqcPub);
+                if (!hybridSigner.Verify(signingPublic, pipeline.HeaderBytes.Span, pipeline.HeaderSignatureBytes.Span))
                 {
                     return new PqfDecryptResult(false, PqfRefusalReason.SignatureVerificationFailure, 0, false);
                 }
             }
 
-            var selectedDek = ResolveDek(reader, identity, hybridKem);
-            long emitted = 0;
+            var selectedDek = AuthenticatedModeDecryptor.ResolveDek(pipeline.Header, identity, hybridKem);
             using var chunkHasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
 
             try
             {
-                for (var i = 0; i < reader.Chunks.Count; i++)
+                await foreach (var chunk in pipeline.EnumerateChunksAsync(chunkHasher, ct).ConfigureAwait(false))
                 {
-                    var chunk = reader.Chunks[i];
-                    chunkHasher.AppendData(reader.FileBytes.Slice(chunk.HeaderOffset, 5 + chunk.CiphertextLength).Span);
-
-                    var plaintextBuffer = new byte[chunk.PlaintextLength];
+                    var plaintextLength = chunk.Ciphertext.Length - 16;
+                    var plaintextBuffer = new byte[plaintextLength];
                     var written = ChunkCipher.DecryptChunk(
                         selectedDek,
-                        (ulong)i,
+                        chunk.Index,
                         chunk.IsFinal,
-                        reader.Header.FileId,
-                        reader.FileBytes.Slice(chunk.DataOffset, chunk.CiphertextLength).Span,
+                        pipeline.Header.FileId,
+                        chunk.Ciphertext,
                         plaintextBuffer);
+
+                    SecureZero.Clear(chunk.Ciphertext);
 
                     if (written < 0)
                     {
@@ -63,21 +69,23 @@ internal sealed class StreamingModeDecryptor
                     SecureZero.Clear(plaintextBuffer);
                 }
 
-                if ((ulong)emitted != reader.ReportedPlaintextBytes)
+                await pipeline.ReadTrailerAsync(ct).ConfigureAwait(false);
+
+                if ((ulong)emitted != pipeline.ReportedPlaintextBytes)
                 {
                     return new PqfDecryptResult(false, PqfRefusalReason.FooterPlaintextBytesMismatch, emitted, true);
                 }
 
-                if (reader.Header.Signer is not null)
+                if (pipeline.Header.Signer is not null)
                 {
                     var digest = chunkHasher.GetHashAndReset();
                     var message = new byte[16 + 32 + 20];
-                    reader.Header.FileId.CopyTo(message, 0);
+                    pipeline.Header.FileId.CopyTo(message, 0);
                     digest.CopyTo(message, 16);
-                    reader.FooterBytes.CopyTo(message.AsMemory(48));
+                    pipeline.FooterBytes.CopyTo(message.AsMemory(48));
 
-                    var signingPublic = PqfSigningPublicKey.FromParts(reader.Header.Signer.ClassicalPub, reader.Header.Signer.PqcPub);
-                    if (!signer.Verify(signingPublic, message, reader.FileSignatureBytes.Span))
+                    var signingPublic = PqfSigningPublicKey.FromParts(pipeline.Header.Signer.ClassicalPub, pipeline.Header.Signer.PqcPub);
+                    if (!hybridSigner.Verify(signingPublic, message, pipeline.FileSignatureBytes.Span))
                     {
                         return new PqfDecryptResult(false, PqfRefusalReason.SignatureVerificationFailure, emitted, true);
                     }
@@ -95,41 +103,7 @@ internal sealed class StreamingModeDecryptor
         }
         catch (PqfFileException ex)
         {
-            return new PqfDecryptResult(false, ex.Reason, 0, false);
+            return new PqfDecryptResult(false, ex.Reason, emitted, emitted > 0);
         }
-    }
-
-    private static byte[] ResolveDek(PqfFileReader reader, PqfIdentity identity, HybridKem hybridKem)
-    {
-        byte[]? selectedDek = null;
-
-        for (var i = 0; i < reader.Header.Recipients.Count; i++)
-        {
-            var recipient = reader.Header.Recipients[i];
-            var kek = hybridKem.Decapsulate(identity, recipient.ClassicalEpk, recipient.PqcCt, reader.Header.FileId, (uint)i);
-            var dek = DekWrapper.Unwrap(kek, recipient.WrappedDekNonce, recipient.WrappedDek, reader.Header.FileId);
-            SecureZero.Clear(kek);
-
-            if (dek is null)
-            {
-                continue;
-            }
-
-            if (selectedDek is null)
-            {
-                selectedDek = dek;
-            }
-            else
-            {
-                SecureZero.Clear(dek);
-            }
-        }
-
-        if (selectedDek is null)
-        {
-            throw new PqfFileException(PqfRefusalReason.IdentityMatchesNoRecipient, "Identity does not match any recipient");
-        }
-
-        return selectedDek;
     }
 }

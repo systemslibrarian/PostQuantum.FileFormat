@@ -164,8 +164,8 @@
       "File": "cases/TV-NEG-003.pqf",
       "Expect": "failure",
       "Identity": "id-a",
-      "Reason": "ChunkLengthExceedsRemainingBytes",
-      "StreamingPostHocFailure": false,
+      "Reason": "TruncationDetected",
+      "StreamingPostHocFailure": true,
       "PlaintextSha256": null
     },
     {
@@ -174,7 +174,7 @@
       "Expect": "failure",
       "Identity": "id-a",
       "Reason": "TrailingDataAfterExpectedEof",
-      "StreamingPostHocFailure": false,
+      "StreamingPostHocFailure": true,
       "PlaintextSha256": null
     },
     {
@@ -183,7 +183,7 @@
       "Expect": "failure",
       "Identity": "id-a",
       "Reason": "FooterMagicInvalid",
-      "StreamingPostHocFailure": false,
+      "StreamingPostHocFailure": true,
       "PlaintextSha256": null
     },
     {
@@ -200,7 +200,7 @@
       "File": "cases/TV-NEG-007.pqf",
       "Expect": "failure",
       "Identity": "id-a",
-      "Reason": "TruncationDetected",
+      "Reason": "ChunkLengthExceedsRemainingBytes",
       "StreamingPostHocFailure": false,
       "PlaintextSha256": null
     },
@@ -309,7 +309,7 @@
       "Expect": "failure",
       "Identity": "id-a",
       "Reason": "FooterChunkCountMismatch",
-      "StreamingPostHocFailure": false,
+      "StreamingPostHocFailure": true,
       "PlaintextSha256": null
     },
     {
@@ -318,7 +318,7 @@
       "Expect": "failure",
       "Identity": "id-a",
       "Reason": "FooterPlaintextBytesMismatch",
-      "StreamingPostHocFailure": false,
+      "StreamingPostHocFailure": true,
       "PlaintextSha256": null
     },
     {
@@ -336,7 +336,7 @@
       "Expect": "failure",
       "Identity": "id-a",
       "Reason": "FooterPlaintextBytesMismatch",
-      "StreamingPostHocFailure": false,
+      "StreamingPostHocFailure": true,
       "PlaintextSha256": null
     }
   ]

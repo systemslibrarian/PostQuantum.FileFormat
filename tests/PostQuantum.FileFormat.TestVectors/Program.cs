@@ -55,11 +55,26 @@ var negatives = new List<(string id, byte[] bytes, string reason, bool postHoc, 
 {
     ("TV-NEG-001", Mutate(baseUnsigned, b => b[0] ^= 0xFF), nameof(PqfRefusalReason.MagicMismatch), false, "id-a"),
     ("TV-NEG-002", Mutate(baseUnsigned, b => b[5] ^= 0x01), nameof(PqfRefusalReason.VersionMismatch), false, "id-a"),
-    ("TV-NEG-003", baseUnsigned[..^1], nameof(PqfRefusalReason.ChunkLengthExceedsRemainingBytes), false, "id-a"),
-    ("TV-NEG-004", Append(baseUnsigned, 0xAA), nameof(PqfRefusalReason.TrailingDataAfterExpectedEof), false, "id-a"),
-    ("TV-NEG-005", MutateFooterMagic(baseUnsigned), nameof(PqfRefusalReason.FooterMagicInvalid), false, "id-a"),
+    // TV-NEG-003: trailing-byte truncation. The streaming reader exhausts the
+    // input while reading the 20-byte footer; the legacy in-memory reader saw
+    // the same byte deficit one frame earlier as a chunk-length overrun. Both
+    // are equally fail-closed; TruncationDetected is the more accurate
+    // explanation for "file is one byte short".
+    ("TV-NEG-003", baseUnsigned[..^1], nameof(PqfRefusalReason.TruncationDetected), true, "id-a"),
+    // TV-NEG-004: appended trailing byte. The streaming reader emits plaintext
+    // and reads the footer normally, then detects the extra byte during the
+    // post-trailer EOF probe — so this is a post-hoc failure in streaming mode.
+    ("TV-NEG-004", Append(baseUnsigned, 0xAA), nameof(PqfRefusalReason.TrailingDataAfterExpectedEof), true, "id-a"),
+    // TV-NEG-005: footer magic corruption is detected after the chunk stream
+    // has been drained, so streaming mode has already emitted plaintext.
+    ("TV-NEG-005", MutateFooterMagic(baseUnsigned), nameof(PqfRefusalReason.FooterMagicInvalid), true, "id-a"),
     ("TV-NEG-006", MutateFirstChunkFlags(baseUnsigned, 0x80), nameof(PqfRefusalReason.ReservedChunkFlagBitsSet), false, "id-a"),
-    ("TV-NEG-007", MutateFirstChunkLength(baseUnsigned, uint.MaxValue), nameof(PqfRefusalReason.TruncationDetected), false, "id-a"),
+    // TV-NEG-007: forged chunk_length = uint.MaxValue. The streaming reader
+    // bounds chunk frames at chunk_size+16 (≤ 16 MiB + 16) and refuses
+    // immediately at the per-chunk bound rather than waiting until the read
+    // of the bogus payload exhausts the stream. The new reason is strictly
+    // more precise about the defect.
+    ("TV-NEG-007", MutateFirstChunkLength(baseUnsigned, uint.MaxValue), nameof(PqfRefusalReason.ChunkLengthExceedsRemainingBytes), false, "id-a"),
     ("TV-NEG-008", MutateFirstCiphertextByte(baseUnsigned), nameof(PqfRefusalReason.AeadTagFailure), false, "id-a"),
     ("TV-NEG-009", Mutate(baseSigned, b => b[^1] ^= 0x01), nameof(PqfRefusalReason.SignatureVerificationFailure), true, "id-a"),
     ("TV-NEG-010", Mutate(baseSigned, b => b[10] ^= 0x01), nameof(PqfRefusalReason.NonDeterministicCborEncoding), false, "id-a"),
@@ -71,10 +86,13 @@ var negatives = new List<(string id, byte[] bytes, string reason, bool postHoc, 
     ("TV-NEG-016", Mutate(baseUnsigned, b => b[^40] ^= 0x20), nameof(PqfRefusalReason.AeadTagFailure), false, "id-a"),
     ("TV-NEG-017", Mutate(baseUnsigned, b => b[^50] ^= 0x40), nameof(PqfRefusalReason.AeadTagFailure), false, "id-a"),
     ("TV-NEG-018", MutateFirstChunkFlags(baseUnsigned, 0x02), nameof(PqfRefusalReason.ReservedChunkFlagBitsSet), false, "id-a"),
-    ("TV-NEG-019", MutateFooterCount(baseUnsigned, 9_999), nameof(PqfRefusalReason.FooterChunkCountMismatch), false, "id-a"),
-    ("TV-NEG-020", MutateFooterPlaintextBytes(baseUnsigned, 123), nameof(PqfRefusalReason.FooterPlaintextBytesMismatch), false, "id-a"),
+    // TV-NEG-019/020: footer count/byte-tally mismatches are detected only
+    // after every chunk has been drained, so streaming mode has emitted the
+    // (cryptographically authentic) plaintext before refusing.
+    ("TV-NEG-019", MutateFooterCount(baseUnsigned, 9_999), nameof(PqfRefusalReason.FooterChunkCountMismatch), true, "id-a"),
+    ("TV-NEG-020", MutateFooterPlaintextBytes(baseUnsigned, 123), nameof(PqfRefusalReason.FooterPlaintextBytesMismatch), true, "id-a"),
     ("TV-NEG-021", baseUnsigned, nameof(PqfRefusalReason.IdentityMatchesNoRecipient), false, "id-b"),
-    ("TV-NEG-022", Mutate(baseUnsigned, b => b[^2] ^= 0x11), nameof(PqfRefusalReason.FooterPlaintextBytesMismatch), false, "id-a"),
+    ("TV-NEG-022", Mutate(baseUnsigned, b => b[^2] ^= 0x11), nameof(PqfRefusalReason.FooterPlaintextBytesMismatch), true, "id-a"),
 };
 
 foreach (var neg in negatives)

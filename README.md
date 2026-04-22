@@ -166,7 +166,7 @@ SECURITY.md                      Security-reporting policy and supported version
 
 ## Current implementation limits
 
-- The `PqfFileReader.OpenForValidation` path validates a fully materialized byte buffer with `int`-indexed offsets, so the validator is currently bounded by single-buffer size on the active .NET runtime even though the wire format uses `uint64` footer counters. A streaming validator path is planned and will not require a wire-format change.
+- The legacy `PqfFileReader.OpenForValidation` helper still operates on a fully materialized byte buffer (preserved for tests and for callers who already have the file in memory). Production decryption now goes through `PqfStreamingPipeline`, which reads from a `Stream` directly: only the header (≤ 1 MiB per spec) and one in-flight chunk (≤ 16 MiB + AEAD tag) are buffered. Authenticated mode still stages plaintext to a 0600-mode `DeleteOnClose` tempfile above 100 MiB so the file signature can be verified before any byte is released to the destination — that staging is required by the security model, not by the parser.
 
 ## Status
 

@@ -4,6 +4,16 @@ using PostQuantum.FileFormat.Keys;
 
 namespace PostQuantum.FileFormat.File;
 
+/// <summary>
+/// Authenticated decryption: NO plaintext is released to the destination
+/// until the full file signature (when present) is verified. To preserve
+/// that property without buffering the entire ciphertext stream, we drive
+/// a streaming pipeline that surfaces chunks one at a time, decrypt each
+/// chunk, and write the resulting plaintext to a private staging buffer
+/// (memory for small files, an mode-0600 DeleteOnClose tempfile above the
+/// threshold). After the file signature verifies, we drain the staging
+/// buffer to the caller-supplied destination.
+/// </summary>
 internal sealed class AuthenticatedModeDecryptor
 {
     internal const long BufferToDiskThresholdBytes = 100L * 1024 * 1024;
@@ -15,80 +25,50 @@ internal sealed class AuthenticatedModeDecryptor
         ICryptoProvider provider,
         CancellationToken ct)
     {
-        using var input = new MemoryStream();
-        await source.CopyToAsync(input, ct).ConfigureAwait(false);
-        var fileBytes = input.ToArray();
-        var reader = PqfFileReader.OpenForValidation(fileBytes);
+        await using var pipeline = await PqfStreamingPipeline.OpenAsync(source, leaveOpen: true, ct).ConfigureAwait(false);
 
         var hybridKem = new HybridKem(provider);
-        var signer = new HybridSigner(provider);
+        var hybridSigner = new HybridSigner(provider);
 
-        if (reader.Header.Signer is not null)
+        if (pipeline.Header.Signer is not null)
         {
-            var signingPublic = PqfSigningPublicKey.FromParts(reader.Header.Signer.ClassicalPub, reader.Header.Signer.PqcPub);
-            if (!signer.Verify(signingPublic, reader.HeaderBytes.Span, reader.HeaderSignatureBytes.Span))
+            var signingPublic = PqfSigningPublicKey.FromParts(pipeline.Header.Signer.ClassicalPub, pipeline.Header.Signer.PqcPub);
+            if (!hybridSigner.Verify(signingPublic, pipeline.HeaderBytes.Span, pipeline.HeaderSignatureBytes.Span))
             {
                 throw new PqfFileException(PqfRefusalReason.SignatureVerificationFailure, "Header signature verification failed");
             }
         }
 
-        var selectedDek = ResolveDek(reader, identity, hybridKem);
-
-        Stream? buffer = null;
-        string? tempFilePath = null;
+        var selectedDek = ResolveDek(pipeline.Header, identity, hybridKem);
+        SpillToDiskStream? buffer = null;
         ulong observedPlaintext = 0;
         using var chunkHasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
 
         try
         {
-            if (reader.ReportedPlaintextBytes > (ulong)BufferToDiskThresholdBytes)
-            {
-                tempFilePath = Path.Combine(Path.GetTempPath(), $"pqf-auth-{Guid.NewGuid():N}.tmp");
+            // We do not know the plaintext size up-front in true streaming
+            // mode (the footer has not been read yet). SpillToDiskStream
+            // starts in memory and spills to a 0600 DeleteOnClose tempfile
+            // once the threshold is exceeded.
+            buffer = new SpillToDiskStream(BufferToDiskThresholdBytes);
 
-                // Pre-verification plaintext is buffered to disk only above the
-                // memory threshold. Two defensive measures here:
-                //   1. UnixCreateMode = 0600 so other users on a multi-user host
-                //      cannot read the buffered plaintext between the time it is
-                //      written and the time the file is deleted.
-                //   2. FileOptions.DeleteOnClose so the OS unlinks the file even
-                //      if this process is killed mid-decrypt and never reaches
-                //      the manual cleanup in the finally block.
-                var bufferOptions = new FileStreamOptions
-                {
-                    Mode = FileMode.CreateNew,
-                    Access = FileAccess.ReadWrite,
-                    Share = FileShare.None,
-                    BufferSize = 4096,
-                    Options = FileOptions.SequentialScan | FileOptions.DeleteOnClose,
-                };
-                if (!OperatingSystem.IsWindows())
-                {
-                    bufferOptions.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
-                }
-                buffer = new FileStream(tempFilePath, bufferOptions);
-            }
-            else
+            await foreach (var chunk in pipeline.EnumerateChunksAsync(chunkHasher, ct).ConfigureAwait(false))
             {
-                buffer = new MemoryStream((int)reader.ReportedPlaintextBytes);
-            }
-
-            for (var i = 0; i < reader.Chunks.Count; i++)
-            {
-                var chunk = reader.Chunks[i];
-                chunkHasher.AppendData(reader.FileBytes.Slice(chunk.HeaderOffset, 5 + chunk.CiphertextLength).Span);
-
-                var plaintextBuffer = new byte[chunk.PlaintextLength];
+                var plaintextLength = chunk.Ciphertext.Length - 16;
+                var plaintextBuffer = new byte[plaintextLength];
                 var written = ChunkCipher.DecryptChunk(
                     selectedDek,
-                    (ulong)i,
+                    chunk.Index,
                     chunk.IsFinal,
-                    reader.Header.FileId,
-                    reader.FileBytes.Slice(chunk.DataOffset, chunk.CiphertextLength).Span,
+                    pipeline.Header.FileId,
+                    chunk.Ciphertext,
                     plaintextBuffer);
+
+                SecureZero.Clear(chunk.Ciphertext);
 
                 if (written < 0)
                 {
-                    throw new PqfFileException(PqfRefusalReason.AeadTagFailure, $"Chunk {i} failed AEAD authentication");
+                    throw new PqfFileException(PqfRefusalReason.AeadTagFailure, $"Chunk {chunk.Index} failed AEAD authentication");
                 }
 
                 await buffer.WriteAsync(plaintextBuffer.AsMemory(0, written), ct).ConfigureAwait(false);
@@ -96,21 +76,23 @@ internal sealed class AuthenticatedModeDecryptor
                 SecureZero.Clear(plaintextBuffer);
             }
 
-            if (observedPlaintext != reader.ReportedPlaintextBytes)
+            await pipeline.ReadTrailerAsync(ct).ConfigureAwait(false);
+
+            if (observedPlaintext != pipeline.ReportedPlaintextBytes)
             {
                 throw new PqfFileException(PqfRefusalReason.FooterPlaintextBytesMismatch, "Footer plaintext bytes mismatch");
             }
 
-            if (reader.Header.Signer is not null)
+            if (pipeline.Header.Signer is not null)
             {
                 var digest = chunkHasher.GetHashAndReset();
                 var message = new byte[16 + 32 + 20];
-                reader.Header.FileId.CopyTo(message, 0);
+                pipeline.Header.FileId.CopyTo(message, 0);
                 digest.CopyTo(message, 16);
-                reader.FooterBytes.CopyTo(message.AsMemory(48));
+                pipeline.FooterBytes.CopyTo(message.AsMemory(48));
 
-                var signingPublic = PqfSigningPublicKey.FromParts(reader.Header.Signer.ClassicalPub, reader.Header.Signer.PqcPub);
-                if (!signer.Verify(signingPublic, message, reader.FileSignatureBytes.Span))
+                var signingPublic = PqfSigningPublicKey.FromParts(pipeline.Header.Signer.ClassicalPub, pipeline.Header.Signer.PqcPub);
+                if (!hybridSigner.Verify(signingPublic, message, pipeline.FileSignatureBytes.Span))
                 {
                     throw new PqfFileException(PqfRefusalReason.SignatureVerificationFailure, "File signature verification failed");
                 }
@@ -127,41 +109,20 @@ internal sealed class AuthenticatedModeDecryptor
             SecureZero.Clear(selectedDek);
             if (buffer is not null)
             {
-                // FileStream constructed with FileOptions.DeleteOnClose unlinks
-                // tempFilePath here. MemoryStream dispose is sufficient for the
-                // in-memory path. The previous explicit File.Delete is no longer
-                // needed but kept for defense-in-depth in case the OS does not
-                // honour DeleteOnClose semantics (e.g. on some network FS).
                 await buffer.DisposeAsync().ConfigureAwait(false);
-            }
-
-            if (tempFilePath is not null)
-            {
-                try
-                {
-                    System.IO.File.Delete(tempFilePath);
-                }
-                catch (FileNotFoundException)
-                {
-                    // Expected: DeleteOnClose already removed it.
-                }
-                catch
-                {
-                    // Best effort cleanup.
-                }
             }
         }
     }
 
-    private static byte[] ResolveDek(PqfFileReader reader, PqfIdentity identity, HybridKem hybridKem)
+    internal static byte[] ResolveDek(PqfFileHeader header, PqfIdentity identity, HybridKem hybridKem)
     {
         byte[]? selectedDek = null;
 
-        for (var i = 0; i < reader.Header.Recipients.Count; i++)
+        for (var i = 0; i < header.Recipients.Count; i++)
         {
-            var recipient = reader.Header.Recipients[i];
-            var kek = hybridKem.Decapsulate(identity, recipient.ClassicalEpk, recipient.PqcCt, reader.Header.FileId, (uint)i);
-            var dek = DekWrapper.Unwrap(kek, recipient.WrappedDekNonce, recipient.WrappedDek, reader.Header.FileId);
+            var recipient = header.Recipients[i];
+            var kek = hybridKem.Decapsulate(identity, recipient.ClassicalEpk, recipient.PqcCt, header.FileId, (uint)i);
+            var dek = DekWrapper.Unwrap(kek, recipient.WrappedDekNonce, recipient.WrappedDek, header.FileId);
             SecureZero.Clear(kek);
 
             if (dek is null)
