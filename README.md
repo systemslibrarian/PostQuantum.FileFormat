@@ -287,6 +287,8 @@ If you find an issue, please open a [GitHub Issue](https://github.com/systemslib
 - [`docs/THREAT-MODEL.md`](./docs/THREAT-MODEL.md) — explicit threat model with a per-asset STRIDE table.
 - [`docs/COMPATIBILITY.md`](./docs/COMPATIBILITY.md) — versioning policy, v1.0.0 freeze contract, deprecation rules.
 - [`docs/DESIGN.md`](./docs/DESIGN.md) — long-form design narrative for non-cryptographers.
+- [`docs/CLAIMS-AND-EVIDENCE.md`](./docs/CLAIMS-AND-EVIDENCE.md) — every security claim PQF makes, paired with the artifact that backs it.
+- [`docs/FAQ.md`](./docs/FAQ.md) — common questions with hyperlinked answers.
 - [`docs/STREAMING.md`](./docs/STREAMING.md) — decision matrix for Streaming vs Authenticated Mode.
 - [`docs/INTEROP.md`](./docs/INTEROP.md) — living interoperability matrix.
 - [`docs/SIDE-CHANNEL-POSTURE.md`](./docs/SIDE-CHANNEL-POSTURE.md) — per-operation side-channel posture (what the wrapper controls, what it inherits, what's out of scope).
