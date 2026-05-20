@@ -4,10 +4,17 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   build-test:
-    name: Build + unit tests + smoke (.NET 8 SDK)
-    runs-on: ubuntu-latest
+    name: Build + unit tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
       - name: Checkout
@@ -27,16 +34,57 @@ jobs:
       - name: Test
         run: dotnet test PostQuantum.FileFormat.sln --no-build -c Release --verbosity normal
 
-      - name: Smoke test (in-tree CLI roundtrip)
-        run: bash scripts/smoke.sh
-
-  runtime-matrix:
-    name: Runtime roll-forward smoke (.NET ${{ matrix.runtime }})
+  smoke:
+    name: Smoke test (${{ matrix.os }})
     needs: build-test
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build
+        run: dotnet build PostQuantum.FileFormat.sln -c Release --nologo -v minimal
+
+      - name: Smoke test (in-tree CLI roundtrip)
+        run: bash scripts/smoke.sh
+
+  smoke-windows:
+    name: Smoke test (windows-latest)
+    needs: build-test
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build
+        run: dotnet build PostQuantum.FileFormat.sln -c Release --nologo -v minimal
+
+      - name: Smoke test (in-tree CLI roundtrip, PowerShell)
+        shell: pwsh
+        run: ./scripts/smoke.ps1
+
+  runtime-matrix:
+    name: Runtime roll-forward smoke (.NET ${{ matrix.runtime }} on ${{ matrix.os }})
+    needs: build-test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
         runtime: ['8.0.x', '9.0.x', '10.0.x']
     steps:
       - name: Checkout
@@ -56,12 +104,14 @@ jobs:
           dotnet-version: ${{ matrix.runtime }}
 
       - name: Pack CLI
+        shell: bash
         run: |
           dotnet pack cli/PostQuantum.FileFormat.Cli/PostQuantum.FileFormat.Cli.csproj \
             -c Release \
             -o "${{ runner.temp }}/nupkgs"
 
       - name: Install pqf as a local tool from the freshly packed nupkg
+        shell: bash
         working-directory: ${{ runner.temp }}
         run: |
           mkdir tool-test && cd tool-test
@@ -71,10 +121,13 @@ jobs:
             --prerelease
 
       - name: pqf --help (must run on .NET ${{ matrix.runtime }})
+        shell: bash
         working-directory: ${{ runner.temp }}/tool-test
         run: dotnet tool run pqf -- --help
 
-      - name: Roundtrip on .NET ${{ matrix.runtime }}
+      - name: Roundtrip on .NET ${{ matrix.runtime }} (POSIX)
+        if: matrix.os != 'windows-latest'
+        shell: bash
         working-directory: ${{ runner.temp }}/tool-test
         run: |
           set -euo pipefail
@@ -86,7 +139,27 @@ jobs:
           dotnet tool run pqf -- decrypt --in sample.pqf --out sample.out.bin \
             --identity enc.key --mode authenticated
           diff -q sample.bin sample.out.bin
-          echo "roundtrip OK on .NET ${{ matrix.runtime }}"
+          echo "roundtrip OK on .NET ${{ matrix.runtime }} / ${{ matrix.os }}"
+
+      - name: Roundtrip on .NET ${{ matrix.runtime }} (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        working-directory: ${{ runner.temp }}/tool-test
+        run: |
+          $ErrorActionPreference = 'Stop'
+          dotnet tool run pqf -- keygen --type encrypt --public-out enc.pub --private-out enc.key
+          dotnet tool run pqf -- keygen --type sign    --public-out sig.pub --private-out sig.key
+          $bytes = New-Object byte[] 100000
+          [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+          [System.IO.File]::WriteAllBytes("sample.bin", $bytes)
+          dotnet tool run pqf -- encrypt --in sample.bin --out sample.pqf `
+            --recipient enc.pub --signing-key sig.key
+          dotnet tool run pqf -- decrypt --in sample.pqf --out sample.out.bin `
+            --identity enc.key --mode authenticated
+          $hashIn  = (Get-FileHash sample.bin     -Algorithm SHA256).Hash
+          $hashOut = (Get-FileHash sample.out.bin -Algorithm SHA256).Hash
+          if ($hashIn -ne $hashOut) { throw "roundtrip mismatch: $hashIn != $hashOut" }
+          Write-Host "roundtrip OK on .NET ${{ matrix.runtime }} / windows-latest"
 
   rust-conformance:
     name: Cross-impl conformance (Rust reader vs .NET vectors)
@@ -116,3 +189,67 @@ jobs:
         working-directory: impl/rust/pqf-reader
         run: cargo run --release --bin pqf-conformance
 
+  reproducible-vectors:
+    name: Reproducible test vectors
+    needs: build-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore PostQuantum.FileFormat.sln
+
+      - name: Build
+        run: dotnet build PostQuantum.FileFormat.sln --no-restore -c Release
+
+      - name: Regenerate test vectors from seeded inputs
+        # TestVectors is a console app that writes test-vectors/v1/cases/*.pqf
+        # and v1/manifest.json deterministically from seeded RNG. Re-running it
+        # in CI and diffing against the committed bytes is the reproducibility
+        # contract.
+        run: |
+          dotnet run --project tests/PostQuantum.FileFormat.TestVectors \
+            --no-build -c Release
+
+      - name: Diff against committed bytes
+        run: |
+          # A non-zero exit means the wire encoder is no longer byte-deterministic
+          # for the seeded inputs — a release blocker.
+          git diff --exit-code test-vectors/v1/ \
+            || (echo "::error::Regenerated test vectors differ from committed bytes" && exit 1)
+
+  fuzz-short:
+    name: Fuzz (short, smoke)
+    needs: build-test
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: |
+          if [ -f tests/PostQuantum.FileFormat.Fuzz/PostQuantum.FileFormat.Fuzz.csproj ]; then
+            dotnet restore tests/PostQuantum.FileFormat.Fuzz/PostQuantum.FileFormat.Fuzz.csproj
+          else
+            echo "Fuzz project not present; skipping."
+            exit 0
+          fi
+
+      - name: Smoke-fuzz the header parser for 60 seconds
+        run: |
+          if [ -f tests/PostQuantum.FileFormat.Fuzz/PostQuantum.FileFormat.Fuzz.csproj ]; then
+            dotnet run --project tests/PostQuantum.FileFormat.Fuzz \
+              -c Release -- --time 60 --target header
+          fi

@@ -1,0 +1,129 @@
+name: Release
+
+# Triggered on a published GitHub release whose tag matches v*.*.*[-preview.*].
+# Produces:
+#   - The packed CLI nupkg, pushed to NuGet.org.
+#   - A CycloneDX SBOM for the CLI, attached to the release.
+#   - SLSA Level 3 build provenance (via slsa-github-generator) for the nupkg
+#     and SBOM, attached to the release.
+#
+# Secrets required:
+#   NUGET_API_KEY — push-only key scoped to PostQuantum.FileFormat.Cli.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build, pack, SBOM
+    runs-on: ubuntu-latest
+    outputs:
+      nupkg-name: ${{ steps.pack.outputs.nupkg-name }}
+      nupkg-sha256: ${{ steps.hash.outputs.nupkg-sha256 }}
+      sbom-sha256: ${{ steps.hash.outputs.sbom-sha256 }}
+      hashes: ${{ steps.hash.outputs.hashes }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore PostQuantum.FileFormat.sln
+
+      - name: Build
+        run: dotnet build PostQuantum.FileFormat.sln -c Release --no-restore
+
+      - name: Test
+        run: dotnet test PostQuantum.FileFormat.sln -c Release --no-build
+
+      - name: Pack CLI
+        id: pack
+        run: |
+          mkdir -p artifacts
+          dotnet pack cli/PostQuantum.FileFormat.Cli/PostQuantum.FileFormat.Cli.csproj \
+            -c Release --no-build -o artifacts
+          NUPKG=$(ls artifacts/*.nupkg | head -n1)
+          echo "nupkg-name=$(basename "$NUPKG")" >> "$GITHUB_OUTPUT"
+
+      - name: Install CycloneDX SBOM tool
+        run: dotnet tool install --global CycloneDX
+
+      - name: Generate SBOM
+        run: |
+          ~/.dotnet/tools/dotnet-CycloneDX \
+            cli/PostQuantum.FileFormat.Cli/PostQuantum.FileFormat.Cli.csproj \
+            --json \
+            --output artifacts \
+            --filename pqf-cli.cdx.json
+
+      - name: Compute SHA-256 hashes
+        id: hash
+        run: |
+          cd artifacts
+          NUPKG=$(ls *.nupkg | head -n1)
+          NUPKG_HASH=$(sha256sum "$NUPKG" | awk '{print $1}')
+          SBOM_HASH=$(sha256sum pqf-cli.cdx.json | awk '{print $1}')
+          echo "nupkg-sha256=$NUPKG_HASH" >> "$GITHUB_OUTPUT"
+          echo "sbom-sha256=$SBOM_HASH"   >> "$GITHUB_OUTPUT"
+          # base64-encoded multi-line "sha256  filename" pairs for SLSA generator.
+          HASHES=$(sha256sum "$NUPKG" pqf-cli.cdx.json | base64 -w0)
+          echo "hashes=$HASHES" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: artifacts/
+          retention-days: 7
+
+  provenance:
+    name: SLSA provenance
+    needs: build
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
+    with:
+      base64-subjects: "${{ needs.build.outputs.hashes }}"
+      upload-assets: true
+
+  publish:
+    name: Publish to NuGet + attach to release
+    needs: [build, provenance]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
+          path: artifacts
+
+      - name: Push to NuGet.org
+        run: |
+          dotnet nuget push "artifacts/*.nupkg" \
+            --api-key "${{ secrets.NUGET_API_KEY }}" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+
+      - name: Attach SBOM to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          gh release upload "$TAG" artifacts/pqf-cli.cdx.json --clobber
