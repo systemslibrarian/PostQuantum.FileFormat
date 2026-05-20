@@ -1,0 +1,44 @@
+# Top-most EditorConfig file; this stops the search at the repo root.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Default to 4-space indent for code-like files; YAML and the markdown
+# stay at 2 spaces.
+indent_style = space
+indent_size = 4
+
+[*.{md,yml,yaml,json}]
+indent_size = 2
+
+[*.{cs,csproj,sln,props,targets}]
+indent_size = 4
+# BOM is required for older Windows tooling on some files; keep it
+# off here so cross-platform contributors don't get phantom diffs.
+charset = utf-8
+
+[*.{rs,toml}]
+indent_size = 4
+
+[*.{py,sh}]
+indent_size = 4
+
+[*.ps1]
+end_of_line = crlf
+indent_size = 4
+
+[*.html]
+indent_size = 2
+
+[Makefile]
+indent_style = tab
+
+[*.{pqf,wasm,nupkg,snupkg,png,jpg,jpeg,gif,req,rsp}]
+# Binary; don't normalize.
+trim_trailing_whitespace = false
+insert_final_newline = false
+end_of_line = unset

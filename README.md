@@ -286,7 +286,13 @@ If you find an issue, please open a [GitHub Issue](https://github.com/systemslib
 - [`spec/ietf/draft-clark-pqf-00.md`](./spec/ietf/draft-clark-pqf-00.md) — kramdown-rfc Internet-Draft skeleton, work in progress.
 - [`docs/THREAT-MODEL.md`](./docs/THREAT-MODEL.md) — explicit threat model with a per-asset STRIDE table.
 - [`docs/COMPATIBILITY.md`](./docs/COMPATIBILITY.md) — versioning policy, v1.0.0 freeze contract, deprecation rules.
+- [`docs/DESIGN.md`](./docs/DESIGN.md) — long-form design narrative for non-cryptographers.
+- [`docs/STREAMING.md`](./docs/STREAMING.md) — decision matrix for Streaming vs Authenticated Mode.
+- [`docs/INTEROP.md`](./docs/INTEROP.md) — living interoperability matrix.
 - [`docs/SIDE-CHANNEL-POSTURE.md`](./docs/SIDE-CHANNEL-POSTURE.md) — per-operation side-channel posture (what the wrapper controls, what it inherits, what's out of scope).
+- [`CHANGELOG.md`](./CHANGELOG.md) — Keep-a-Changelog history.
+- [`MAINTAINERS.md`](./MAINTAINERS.md) — who owns what, response-time expectations, disclosure window.
+- [`man/pqf.1`](./man/pqf.1) — manual page (`mandoc man/pqf.1`).
 - [`SPEC-CHECKLIST.md`](./SPEC-CHECKLIST.md) — per-section conformance items enumerated from the spec.
 - [`docs/internal/PHASE-NOTES.md`](./docs/internal/PHASE-NOTES.md) — implementation phase notes including any spec-ambiguity decisions made during the reference build.
 - [`CONTRIBUTING.md`](./CONTRIBUTING.md) — how to file spec reviews, bugs, and PRs; what gets accepted and what doesn't.

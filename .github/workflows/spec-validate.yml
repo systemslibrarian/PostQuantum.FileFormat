@@ -1,9 +1,9 @@
 name: Spec validate (CDDL)
 
-# Runs the cddl gem against the committed CDDL schema and against every
-# test-vector header. A non-zero exit means either the schema is malformed
-# or a committed positive vector's header no longer conforms to the
-# schema — both are spec-level defects.
+# Runs the cddl gem against the committed CDDL schema and every
+# positive test-vector header. A non-zero exit means either the schema
+# is malformed or a committed positive vector's header no longer
+# conforms — both are spec-level defects.
 
 on:
   push:
@@ -33,6 +33,11 @@ jobs:
         with:
           ruby-version: "3.2"
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Install cddl gem
         run: gem install cddl --version "~> 0.11"
 
@@ -40,24 +45,24 @@ jobs:
         run: cddl spec/pqf-header.cddl generate 1 > /dev/null
 
       - name: Validate every positive vector's header against the CDDL
+        # No .NET build needed: a tiny Python script slices out the
+        # header bytes from each .pqf using the magic + version + length
+        # prefix and hands them to the cddl tool.
         run: |
           set -euo pipefail
-          # Build the header-extractor and run it against every committed
-          # POSITIVE vector (TV-NNN); the negative TV-NEG-* set is
-          # deliberately malformed by construction and would fail CDDL.
-          dotnet build cli/PostQuantum.FileFormat.Cli -c Release --nologo -v minimal
           ok=0
           for f in test-vectors/v1/cases/TV-[0-9]*.pqf; do
             header_cbor="$(mktemp)"
-            # Header bytes start at offset 10 (PQF1 magic + version + length).
-            # Length is u32 BE at offset 6.
-            len="$(python3 -c "
-import sys, struct
-with open('$f','rb') as fh:
-    fh.seek(6)
-    n, = struct.unpack('>I', fh.read(4))
-print(n)")"
-            dd if="$f" of="$header_cbor" bs=1 skip=10 count="$len" status=none
+            python3 - "$f" "$header_cbor" <<'PY'
+          import sys, struct
+          src, dst = sys.argv[1], sys.argv[2]
+          with open(src, "rb") as fh:
+              fh.seek(6)
+              n, = struct.unpack(">I", fh.read(4))
+              fh.seek(10)
+              body = fh.read(n)
+          open(dst, "wb").write(body)
+          PY
             cddl spec/pqf-header.cddl validate "$header_cbor" \
               && echo "  OK: $(basename "$f")" \
               || { echo "  FAIL: $(basename "$f")"; ok=1; }

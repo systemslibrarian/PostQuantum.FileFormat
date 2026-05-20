@@ -39,6 +39,10 @@ jobs:
         working-directory: impl/rust/pqf-writer
         run: cargo build --release
 
+      - name: Run integration tests (writer + reader roundtrip)
+        working-directory: impl/rust/pqf-writer
+        run: cargo test --release
+
       - name: Lint with clippy
         working-directory: impl/rust/pqf-writer
         run: cargo clippy --release -- -D warnings || true

@@ -1,0 +1,75 @@
+# Repository labels, applied by .github/workflows/labels-sync.yml using
+# crazy-max/ghaction-github-labeler. Adding a row here and merging to
+# main creates / updates the label.
+
+- name: bug
+  color: "d73a4a"
+  description: A defect in the reference implementation or CLI.
+
+- name: spec
+  color: "5319e7"
+  description: Issue against the wire format or normative text.
+
+- name: refusal-case
+  color: "0e8a16"
+  description: A malformed input that should be (or is incorrectly) refused.
+
+- name: security
+  color: "b60205"
+  description: Security-sensitive issue. Use the private security advisory channel.
+
+- name: dependencies
+  color: "0366d6"
+  description: Dependency update (dependabot).
+
+- name: dotnet
+  color: "512bd4"
+  description: Touches the .NET reference implementation.
+
+- name: rust
+  color: "dea584"
+  description: Touches the Rust reader/writer.
+
+- name: bindings/python
+  color: "3776ab"
+  description: Touches the Python pyo3 binding.
+
+- name: bindings/wasm
+  color: "654ff0"
+  description: Touches the WebAssembly binding or browser demo.
+
+- name: ci
+  color: "fbca04"
+  description: CI workflows or supply-chain configuration.
+
+- name: docs
+  color: "0075ca"
+  description: Documentation only.
+
+- name: tests
+  color: "1d76db"
+  description: Tests, test vectors, or fuzz / property / KAT harnesses.
+
+- name: implementation/.net
+  color: "512bd4"
+  description: PR touches the .NET reference implementation.
+
+- name: implementation/rust
+  color: "dea584"
+  description: PR touches the Rust impl.
+
+- name: supply-chain
+  color: "b60205"
+  description: Touches release pipeline, SBOM, signing, or Scorecard.
+
+- name: help-wanted
+  color: "008672"
+  description: Good entry point for new contributors.
+
+- name: pinned
+  color: "e99695"
+  description: Exempt from stale-bot.
+
+- name: wip
+  color: "fef2c0"
+  description: Work in progress; exempt from stale-bot.
