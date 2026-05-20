@@ -54,7 +54,7 @@ internal static class Program
     private static int RunMlKem1024Kats(string katDir, ICryptoProvider provider)
     {
         var path = Path.Combine(katDir, "ml-kem-1024.rsp");
-        if (!File.Exists(path))
+        if (!System.IO.File.Exists(path))
         {
             Console.WriteLine($"[skip] {Path.GetFileName(path)} not present.");
             return 0;
@@ -102,7 +102,7 @@ internal static class Program
     private static int RunMlDsa87Kats(string katDir, ICryptoProvider provider)
     {
         var path = Path.Combine(katDir, "ml-dsa-87.rsp");
-        if (!File.Exists(path))
+        if (!System.IO.File.Exists(path))
         {
             Console.WriteLine($"[skip] {Path.GetFileName(path)} not present.");
             return 0;
@@ -169,7 +169,7 @@ internal static class Program
             {
                 return candidate;
             }
-            if (File.Exists(Path.Combine(dir.FullName, "PostQuantum.FileFormat.sln")))
+            if (System.IO.File.Exists(Path.Combine(dir.FullName, "PostQuantum.FileFormat.sln")))
             {
                 return candidate;
             }

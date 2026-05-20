@@ -18,7 +18,7 @@ internal sealed class NistKatRsp
         Dictionary<string, string>? current = null;
         int count = -1;
 
-        foreach (var raw in File.ReadLines(path))
+        foreach (var raw in System.IO.File.ReadLines(path))
         {
             var line = raw.Trim();
             if (line.Length == 0 || line.StartsWith('#'))

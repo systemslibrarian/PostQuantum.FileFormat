@@ -1,23 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    NIST Known-Answer Test (KAT) cross-check harness.
-
-    Reads KAT vector files for ML-KEM-1024 and ML-DSA-87 from the
-    test-vectors/nist-kat/ directory and runs them through PQF's crypto
-    provider wrappers. A mismatch on any input indicates the wrapper
-    misuses the underlying primitive (wrong parameter set, wrong byte
-    order, transposed key/ciphertext, etc.) — defects that the higher-
-    level format tests cannot catch because they would simply produce
-    different (but mutually-consistent) outputs.
-
-    The KAT files themselves are NIST-published artifacts and are
-    intentionally not committed to this repo. Run
-    `scripts/fetch-nist-kat.sh` (or its PowerShell equivalent) to
-    populate the directory before running this harness.
-
-    Usage:
-        dotnet run --project tests/PostQuantum.FileFormat.Kat
+    NIST Known-Answer Test (KAT) cross-check harness. Reads KAT vector
+    files for ML-KEM-1024 and ML-DSA-87 from test-vectors/nist-kat/ and
+    runs them through PQF's crypto provider wrappers. KAT files
+    themselves are fetched on demand by scripts/fetch-nist-kat.sh.
+    Run with: dotnet run project tests/PostQuantum.FileFormat.Kat
   -->
 
   <PropertyGroup>

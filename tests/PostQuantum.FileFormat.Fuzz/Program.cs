@@ -100,7 +100,7 @@ internal static class Program
             if (findingInput is not null)
             {
                 var path = Path.Combine(Path.GetTempPath(), $"pqf-fuzz-find-{seed}.bin");
-                File.WriteAllBytes(path, findingInput);
+                System.IO.File.WriteAllBytes(path, findingInput);
                 Console.Error.WriteLine($"fuzz: input saved to {path}");
             }
             return 1;

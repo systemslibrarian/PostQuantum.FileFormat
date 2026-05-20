@@ -193,9 +193,15 @@ CODE_OF_CONDUCT.md               Contributor Covenant 2.1
 |---|---|
 | Specification | Draft v0.3.1 |
 | Reference implementation (.NET) | Phases 1–5 complete on `main`, CI green |
-| Test vectors | v1 set (positive + negative) committed |
+| Test vectors | v1 set (positive + negative) committed; reproducibility gated on the unsigned subset |
 | CLI (`pqf`) | `keygen`, `encrypt`, `decrypt`, `inspect`, `fingerprint`; published as `0.4.0-preview.2` on NuGet.org |
-| Second-language implementation | Not started |
+| Second-language implementation | Rust reader in `impl/rust/pqf-reader` + cross-impl conformance gate in CI |
+| Parser fuzz harness | `tests/PostQuantum.FileFormat.Fuzz` (CBOR / header / streaming targets); 60-second CI smoke pass |
+| NIST KAT cross-check | `tests/PostQuantum.FileFormat.Kat` scaffolded (verifies Decapsulate + Verify against FIPS 203/204 vectors when fetched) |
+| Constant-time evidence | dudect-style measurement scaffold under `tests/PostQuantum.FileFormat.Tests/Crypto`; skipped by default until baseline noise is characterized |
+| Supply-chain posture | OpenSSF Scorecard + CodeQL weekly; SLSA-L3 provenance + CycloneDX SBOM on release |
+| Threat model | Published — see [`docs/THREAT-MODEL.md`](./docs/THREAT-MODEL.md) |
+| Compatibility / freeze policy | Published — see [`docs/COMPATIBILITY.md`](./docs/COMPATIBILITY.md) |
 | External cryptographic review | Not started |
 
 ## How PQF compares
