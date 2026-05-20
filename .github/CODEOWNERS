@@ -1,0 +1,18 @@
+# Default owner — every PR gets a review request from the maintainer.
+*                                       @systemslibrarian
+
+# Wire format is the source of truth. Spec changes get extra scrutiny.
+/spec/                                  @systemslibrarian
+/SPEC-CHECKLIST.md                      @systemslibrarian
+
+# Cryptographic primitives and the recipient-trial loop.
+/src/PostQuantum.FileFormat/Crypto/     @systemslibrarian
+/src/PostQuantum.FileFormat/File/       @systemslibrarian
+
+# Test vectors are the conformance contract. Treat carefully.
+/test-vectors/                          @systemslibrarian
+/tests/PostQuantum.FileFormat.TestVectors/ @systemslibrarian
+
+# CI, supply-chain, and release surface.
+/.github/                               @systemslibrarian
+/scripts/                               @systemslibrarian

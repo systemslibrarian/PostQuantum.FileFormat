@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security advisory (private)
+    url: https://github.com/systemslibrarian/PostQuantum.FileFormat/security/advisories/new
+    about: Report exploitable issues privately. See SECURITY.md for scope.
+  - name: Discussion
+    url: https://github.com/systemslibrarian/PostQuantum.FileFormat/discussions
+    about: Questions, design conversations, and general feedback.

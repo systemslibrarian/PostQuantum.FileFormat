@@ -3,6 +3,12 @@
 PQF is a specification and reference implementation for hybrid post-quantum encrypted files at rest.
 
 [![CI](https://github.com/systemslibrarian/PostQuantum.FileFormat/actions/workflows/ci.yml/badge.svg)](https://github.com/systemslibrarian/PostQuantum.FileFormat/actions/workflows/ci.yml)
+[![NuGet](https://img.shields.io/nuget/vpre/PostQuantum.FileFormat.Cli.svg?label=nuget%20%28pqf%29)](https://www.nuget.org/packages/PostQuantum.FileFormat.Cli/)
+[![Downloads](https://img.shields.io/nuget/dt/PostQuantum.FileFormat.Cli.svg)](https://www.nuget.org/packages/PostQuantum.FileFormat.Cli/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Spec: draft v0.3.1](https://img.shields.io/badge/spec-draft%20v0.3.1-orange.svg)](spec/PQF-SPEC-v1.md)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/systemslibrarian/PostQuantum.FileFormat/badge)](https://securityscorecards.dev/viewer/?uri=github.com/systemslibrarian/PostQuantum.FileFormat)
+[![REUSE compliant](https://img.shields.io/badge/REUSE-compliant-success.svg)](LICENSE)
 
 ## Quick start
 
@@ -132,19 +138,27 @@ The resulting `.pqf` file is a self-contained encrypted container: it bundles re
 spec/                            Format definition and design rationale
   PQF-SPEC-v1.md                 Normative specification (v0.3.1 draft)
   PQF-DESIGN-RATIONALE-v1.md     Why the spec is what it is
+  ietf/                          Internet-Draft skeleton (work in progress)
 src/PostQuantum.FileFormat/      Reference .NET implementation
 cli/PostQuantum.FileFormat.Cli/  `pqf` command-line tool
+impl/rust/pqf-reader/            Second-source Rust reader + cross-impl gate
 tests/PostQuantum.FileFormat.TestVectors/
                                  Deterministic interoperability vectors
 tests/PostQuantum.FileFormat.Tests/
                                  Validation, refusal, and roundtrip tests
 tests/PostQuantum.FileFormat.Cli.Tests/
                                  CLI integration tests
+tests/PostQuantum.FileFormat.Fuzz/
+                                 Lightweight parser fuzz harness
+tests/PostQuantum.FileFormat.Kat/
+                                 NIST KAT (FIPS 203 / FIPS 204) cross-check harness
+examples/                        Short integration scripts (e.g. tar | pqf encrypt)
 scripts/smoke.sh                 End-to-end roundtrip + refusal-path script (run by CI)
-docs/                            Release prep, checklist review, notes
+docs/                            Threat model, compatibility policy, side-channel posture
 SPEC-CHECKLIST.md                Per-section conformance checklist
 CONTRIBUTING.md                  How to file spec reviews, bugs, and PRs
 SECURITY.md                      Security-reporting policy and supported versions
+CODE_OF_CONDUCT.md               Contributor Covenant 2.1
 ```
 
 ## Security model
@@ -184,6 +198,31 @@ SECURITY.md                      Security-reporting policy and supported version
 | Second-language implementation | Not started |
 | External cryptographic review | Not started |
 
+## How PQF compares
+
+This is a deliberately narrow comparison along the dimensions PQF cares
+about. None of the rows are intended as criticism of the listed projects —
+they have different goals, threat models, and audiences. PQF's distinguishing
+choice is that *hybrid post-quantum confidentiality is the default*, not an
+optional extension, and the parser is fail-closed by construction.
+
+| Property | PQF (this project) | age | GPG (OpenPGP) | Tink | libsodium / NaCl box |
+|---|---|---|---|---|---|
+| Confidentiality primitives | X25519 **+ ML-KEM-1024** (hybrid) | X25519 | RSA / ECDH (classical) | AEAD-only by default | X25519 |
+| PQ posture | Hybrid PQ by default | None (classical) | None (classical) | None | None |
+| Signatures | Optional hybrid: Ed25519 **+ ML-DSA-87** | None (encryption-only) | RSA / EdDSA (classical) | Signature primitives, classical | Ed25519 |
+| Wire format | Deterministic CBOR (RFC 8949 §4.2.2) | Custom textual + binary | OpenPGP packet format (RFC 9580) | Protobuf (keyset), per-primitive ciphertext | Raw concatenation |
+| Parser stance | Fail-closed, no recovery paths | Strict | Historically permissive | Strict | N/A (library, not a container) |
+| Multi-recipient in one file | Yes | Yes | Yes | No (per-key API) | No |
+| Streaming vs authenticated mode contract | Both, explicit non-silent failure signaling | Streaming | Streaming | API-level | API-level |
+| Spec frozen? | Draft v0.3.1 (v1.0.0 target) | Stable | Stable (RFC) | Stable (Google) | Stable |
+| External cryptographic audit | Not yet (review wanted) | Multiple reviews | Decades of scrutiny | Google + audits | Multiple reviews |
+
+If you want a stable, audited classical format today, **age** is the right
+choice for most file-at-rest cases. PQF is for callers who explicitly need
+"this file should remain confidential against a quantum-capable adversary
+decades from now, and I don't want a flag to forget."
+
 ## Why this exists
 
 Existing file-encryption formats either predate the post-quantum transition or treat post-quantum primitives as an optional extension. PQF starts from the assumption that confidential files written today may need to remain confidential against quantum-capable adversaries decades from now ("harvest now, decrypt later"), and that this should be the default rather than a bolt-on.
@@ -208,10 +247,16 @@ If you find an issue, please open a [GitHub Issue](https://github.com/systemslib
 
 - [`spec/PQF-SPEC-v1.md`](./spec/PQF-SPEC-v1.md) — the authoritative format specification and conformance rules.
 - [`spec/PQF-DESIGN-RATIONALE-v1.md`](./spec/PQF-DESIGN-RATIONALE-v1.md) — why the spec is what it is; recommended reading before reviewing the format.
+- [`spec/ietf/draft-clark-pqf-00.md`](./spec/ietf/draft-clark-pqf-00.md) — kramdown-rfc Internet-Draft skeleton, work in progress.
+- [`docs/THREAT-MODEL.md`](./docs/THREAT-MODEL.md) — explicit threat model with a per-asset STRIDE table.
+- [`docs/COMPATIBILITY.md`](./docs/COMPATIBILITY.md) — versioning policy, v1.0.0 freeze contract, deprecation rules.
+- [`docs/SIDE-CHANNEL-POSTURE.md`](./docs/SIDE-CHANNEL-POSTURE.md) — per-operation side-channel posture (what the wrapper controls, what it inherits, what's out of scope).
 - [`SPEC-CHECKLIST.md`](./SPEC-CHECKLIST.md) — per-section conformance items enumerated from the spec.
-- [`PHASE-NOTES.md`](./PHASE-NOTES.md) — implementation phase notes including any spec-ambiguity decisions made during the reference build.
+- [`docs/internal/PHASE-NOTES.md`](./docs/internal/PHASE-NOTES.md) — implementation phase notes including any spec-ambiguity decisions made during the reference build.
 - [`CONTRIBUTING.md`](./CONTRIBUTING.md) — how to file spec reviews, bugs, and PRs; what gets accepted and what doesn't.
 - [`SECURITY.md`](./SECURITY.md) — how to report security-sensitive findings (private security advisory channel for exploitable issues).
+- [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md) — community standards.
+- [`examples/`](./examples/) — short scripts that show how PQF composes with familiar Unix pipelines (`tar | pqf encrypt`).
 - [`scripts/smoke.sh`](./scripts/smoke.sh) — end-to-end roundtrip + refusal-path script run by CI; the simplest way to validate a local build.
 
 ## License

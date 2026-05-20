@@ -1,0 +1,38 @@
+version: 2
+updates:
+  # Runtime/test dependencies.
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "dotnet"
+    # Cryptographic primitives are sensitive. Don't auto-merge.
+    ignore:
+      - dependency-name: "BouncyCastle.Cryptography"
+        update-types: ["version-update:semver-major"]
+
+  # Rust second-source reader.
+  - package-ecosystem: "cargo"
+    directory: "/impl/rust/pqf-reader"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "rust"
+
+  # GitHub Actions.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "ci"

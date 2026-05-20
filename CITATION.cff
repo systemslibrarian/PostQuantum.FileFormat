@@ -1,0 +1,41 @@
+cff-version: 1.2.0
+title: "PQF — Post-Quantum File Format"
+message: "If you cite this work, please use the metadata below."
+type: software
+authors:
+  - given-names: Paul
+    family-names: Clark
+    email: systemslibrarian@gmail.com
+    affiliation: Independent
+repository-code: "https://github.com/systemslibrarian/PostQuantum.FileFormat"
+url: "https://github.com/systemslibrarian/PostQuantum.FileFormat"
+license: MIT
+keywords:
+  - post-quantum cryptography
+  - file format
+  - hybrid encryption
+  - ML-KEM
+  - ML-DSA
+  - X25519
+  - Ed25519
+  - CBOR
+  - "harvest now decrypt later"
+abstract: >-
+  PQF is a specification and reference implementation for a hybrid
+  post-quantum encrypted file format at rest. The construction combines
+  classical (X25519, Ed25519) and post-quantum (ML-KEM-1024, ML-DSA-87)
+  primitives so that confidentiality and authenticity each hold as long as
+  one half of the hybrid remains unbroken. The format is fail-closed by
+  design: any malformed structure, unknown field, reserved bit, length
+  mismatch, or integrity failure results in immediate refusal with a typed
+  error. There are no permissive or best-effort parsing paths.
+preferred-citation:
+  type: software
+  title: "PQF — Post-Quantum File Format"
+  authors:
+    - given-names: Paul
+      family-names: Clark
+  url: "https://github.com/systemslibrarian/PostQuantum.FileFormat"
+  notes: >-
+    Spec version draft v0.3.1. Update this entry on each tagged release
+    once a Zenodo DOI is assigned.

@@ -1,0 +1,62 @@
+name: Bug report
+description: A defect in the reference implementation or CLI.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug.
+
+        **Security-sensitive issues:** if you believe this is exploitable (e.g.
+        a refusal path that incorrectly accepts a malformed file, a side-channel
+        observation, or a primitive misuse), do **not** file a public issue.
+        Use the private security advisory channel described in
+        [SECURITY.md](../blob/main/SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: pqf version
+      description: Output of `pqf --version` (or commit SHA if built from source).
+      placeholder: 0.4.0-preview.2
+    validations:
+      required: true
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: .NET runtime
+      options:
+        - "8.x"
+        - "9.x"
+        - "10.x"
+        - "Other (please specify)"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Ubuntu 24.04 / Windows 11 / macOS 14
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Describe the observed behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Shell commands or code that reproduce the issue. Include a minimal `.pqf` sample if relevant (attach as a file, don't paste raw bytes).
+      render: shell
+    validations:
+      required: true

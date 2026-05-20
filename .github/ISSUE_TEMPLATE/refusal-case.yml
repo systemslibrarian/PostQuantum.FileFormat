@@ -1,0 +1,35 @@
+name: Refusal-case candidate
+description: A malformed input that should be refused (or is currently refused for the wrong reason).
+title: "[refusal] "
+labels: ["refusal-case", "tests"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        PQF is fail-closed by design. Reproducible refusal cases are folded
+        into the negative test-vector set (`tests/PostQuantum.FileFormat.TestVectors`).
+
+        If your case is exploitable rather than just "should be refused but
+        isn't," report it privately via [SECURITY.md](../blob/main/SECURITY.md).
+  - type: input
+    id: refusal_reason
+    attributes:
+      label: Expected PqfRefusalReason
+      description: Which member of `PqfRefusalReason` should be raised?
+      placeholder: HeaderNotDeterministic
+    validations:
+      required: true
+  - type: textarea
+    id: input
+    attributes:
+      label: Input construction
+      description: How the malformed `.pqf` is produced. Prefer a generator over a binary blob.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+    validations:
+      required: true

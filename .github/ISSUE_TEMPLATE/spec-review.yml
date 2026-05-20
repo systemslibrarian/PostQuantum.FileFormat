@@ -1,0 +1,57 @@
+name: Spec review / ambiguity
+description: Question, ambiguity, or proposed change to the normative specification.
+title: "[spec] "
+labels: ["spec"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for issues against the wire format or normative text.
+        For implementation bugs, use the **Bug report** template.
+
+        See the running list of author-acknowledged open questions in
+        [`spec/PQF-DESIGN-RATIONALE-v1.md` §11](../blob/main/spec/PQF-DESIGN-RATIONALE-v1.md#11-open-questions-the-author-acknowledges)
+        — your concern may already be tracked there.
+  - type: input
+    id: section
+    attributes:
+      label: Spec section
+      placeholder: "§2.4 — Hybrid KEM combiner construction"
+    validations:
+      required: true
+  - type: input
+    id: spec_version
+    attributes:
+      label: Spec version
+      placeholder: "draft v0.3.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind of issue
+      options:
+        - "Ambiguity / unclear wording"
+        - "Underspecified behavior"
+        - "Spec/implementation divergence"
+        - "Security concern with the construction"
+        - "Interoperability concern"
+        - "Editorial"
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What is the concern? Quote the relevant spec text.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed resolution (optional)
+  - type: textarea
+    id: refs
+    attributes:
+      label: References
+      description: RFCs, papers, prior art.
