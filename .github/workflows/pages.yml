@@ -1,0 +1,101 @@
+name: GitHub Pages (WASM demo)
+
+# Builds the WASM reader and publishes the demo page to GitHub Pages.
+# Triggered on changes to the bindings/wasm tree and via manual dispatch.
+#
+# The published site is just bindings/wasm/demo/ with the wasm-pack
+# pkg/ directory placed next to it. Anyone can paste a .pqf file into
+# the page and see the header — entirely client-side.
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "bindings/wasm/**"
+      - "impl/rust/pqf-reader/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one Pages deployment at a time.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable) + wasm32 target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            bindings/wasm/target
+            impl/rust/pqf-reader/target
+          key: ${{ runner.os }}-cargo-wasm-${{ hashFiles('bindings/wasm/Cargo.toml', 'impl/rust/pqf-reader/Cargo.toml') }}
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack --locked
+
+      - name: Build wasm bundle
+        working-directory: bindings/wasm
+        run: wasm-pack build --release --target web
+
+      - name: Assemble Pages site
+        run: |
+          mkdir _site
+          cp -r bindings/wasm/demo/* _site/
+          # The demo page imports ../pkg/pqf_wasm.js; mirror that layout.
+          mkdir -p _site/pkg
+          cp bindings/wasm/pkg/* _site/pkg/
+
+          # Add a tiny landing page so the root of the site isn't an empty 404.
+          cat > _site/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <title>PQF — Post-Quantum File Format</title>
+            <meta name="viewport" content="width=device-width,initial-scale=1">
+            <style>body{font-family:-apple-system,sans-serif;max-width:640px;margin:3em auto;padding:0 1em}</style>
+          </head>
+          <body>
+            <h1>PQF — Post-Quantum File Format</h1>
+            <p>
+              PQF is a specification and reference implementation for a
+              hybrid post-quantum encrypted file format at rest.
+              <a href="https://github.com/systemslibrarian/PostQuantum.FileFormat">Source on GitHub</a>.
+            </p>
+            <ul>
+              <li><a href="demo/index.html">Try the WASM reader in your browser</a> — drop a .pqf, see the header, nothing leaves your machine.</li>
+            </ul>
+          </body>
+          </html>
+          HTML
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -25,3 +25,6 @@ Thumbs.db
 test-vectors/nist-kat/*.rsp
 test-vectors/nist-kat/*.req
 
+# BenchmarkDotNet outputs (per-run artifacts; numbers go in README manually)
+BenchmarkDotNet.Artifacts/
+

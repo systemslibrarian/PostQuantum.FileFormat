@@ -1,0 +1,157 @@
+.\" pqf(1) — Post-Quantum File Format CLI
+.\" Render with: mandoc man/pqf.1 | less
+.\" Or:          groff -man -Tutf8 man/pqf.1 | less
+.TH PQF 1 "2026-05-20" "PQF preview 0.4.x" "User Commands"
+.SH NAME
+pqf \- encrypt, decrypt, sign, and inspect Post-Quantum File Format (.pqf) containers
+.SH SYNOPSIS
+.B pqf keygen
+.RB { \-\-type
+.BR encrypt | sign }
+.B \-\-public-out
+.I FILE
+.B \-\-private-out
+.I FILE
+.PP
+.B pqf encrypt
+.B \-\-in
+.I FILE
+.B \-\-out
+.I FILE
+.B \-\-recipient
+.IR KEY ...
+.RB [ \-\-signing-key
+.IR FILE ]
+.PP
+.B pqf decrypt
+.B \-\-in
+.I FILE
+.B \-\-out
+.I FILE
+.B \-\-identity
+.I FILE
+.RB [ \-\-mode
+.BR authenticated | streaming ]
+.PP
+.B pqf inspect
+.B \-\-in
+.I FILE
+.PP
+.B pqf fingerprint
+.B \-\-public
+.I FILE
+.SH DESCRIPTION
+.B pqf
+is the command-line tool for the
+.B Post-Quantum File Format
+(PQF):
+a hybrid post-quantum encrypted file container with a deterministic
+CBOR header and a fail-closed parser. Confidentiality is hybrid
+(X25519 + ML-KEM-1024 combined through HKDF-SHA256); authenticity,
+when present, is hybrid (Ed25519 + ML-DSA-87).
+.PP
+Files have the
+.B .pqf
+extension and consist of a four-byte magic, a deterministic CBOR
+header, an optional 4691-byte header signature, a chunked
+AES-256-GCM payload, a 20-byte footer, and an optional 4691-byte
+file signature. The full normative wire format is specified in
+.B spec/PQF-SPEC-v1.md
+in the upstream repository.
+.SH COMMANDS
+.SS keygen
+Generate a long-term keypair.
+.TP
+.B \-\-type encrypt
+Produce a 1601-byte canonical public key (X25519 || ML-KEM-1024) and
+a private-key JSON blob suitable for
+.BR "pqf decrypt --identity" .
+.TP
+.B \-\-type sign
+Produce a 2624-byte canonical signing public key (Ed25519 || ML-DSA-87)
+and a signing-private-key JSON blob suitable for
+.BR "pqf encrypt --signing-key" .
+.SS encrypt
+Encrypt a file to one or more recipient public keys. Optionally sign
+the file with a hybrid signing identity.
+.TP
+.B \-\-recipient FILE
+Path to a recipient public key (PEM-armored). May be repeated.
+.TP
+.B \-\-signing-key FILE
+Path to a signing private key JSON. When present, the file is signed
+with both halves of the hybrid signature.
+.SS decrypt
+Decrypt a file. Authenticated Mode is the default and verifies the
+file signature (when present) and footer before releasing plaintext.
+Streaming Mode releases verified chunks as they are read and
+surfaces post-hoc verification failures explicitly.
+.TP
+.B \-\-mode authenticated
+Buffer and verify before releasing plaintext.
+.B Recommended unless you have a specific reason otherwise.
+.TP
+.B \-\-mode streaming
+Release verified chunks as they are read. Caller MUST consume the
+trailing verification result.
+See
+.B docs/STREAMING.md
+in the upstream repository for the choice criteria.
+.SS inspect
+Parse and print the header and footer metadata of a
+.B .pqf
+file without releasing any plaintext.
+.SS fingerprint
+Print a short fingerprint of a recipient or signing public key for
+out-of-band verification.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Unspecified failure.
+.TP
+.B 2
+Argument parse error.
+.TP
+.B 5
+Refusal: input failed deterministic-format validation, integrity
+check, signature verification, or other fail-closed contract.
+.SH FILES
+.TP
+.I FILE.pqf
+The encrypted container.
+.TP
+.I FILE.pub.pem
+PEM-armored public key.
+.TP
+.I FILE.key.json
+JSON-encoded private key. Treat as secret.
+.SH SECURITY
+The reference implementation has not undergone external cryptographic
+review. Do not use to protect irreplaceable data. The wire format is
+draft v0.3.1; pre-v1.0.0 files are not guaranteed to be readable by
+v1.0.0.
+.PP
+The header is unencrypted and contains algorithm identifiers,
+recipient public-key material, signer public keys (when signed),
+chunk size, and a timestamp. Treat header contents as visible.
+.SH BUGS
+Report defects via the GitHub issue tracker at
+.UR https://github.com/systemslibrarian/PostQuantum.FileFormat/issues
+.UE
+.PP
+Report exploitable issues privately via the security advisory channel
+referenced in
+.B SECURITY.md
+in the upstream repository.
+.SH SEE ALSO
+.BR age (1),
+.BR gpg (1),
+.BR mandoc (1)
+.SH AUTHORS
+Paul Clark <systemslibrarian@gmail.com>.
+.SH COPYRIGHT
+Copyright (c) 2026 PostQuantum.FileFormat contributors.
+MIT License.

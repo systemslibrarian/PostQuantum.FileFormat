@@ -1,0 +1,60 @@
+# Auto-label PRs by file path. Used by .github/workflows/pr-labeler.yml
+# via actions/labeler@v5.
+
+spec:
+  - changed-files:
+      - any-glob-to-any-file:
+        - "spec/**"
+        - "SPEC-CHECKLIST.md"
+
+implementation/.net:
+  - changed-files:
+      - any-glob-to-any-file:
+        - "src/**"
+        - "cli/**"
+        - "PostQuantum.FileFormat.sln"
+        - "Directory.Build.props"
+        - "**/*.csproj"
+
+implementation/rust:
+  - changed-files:
+      - any-glob-to-any-file:
+        - "impl/rust/**"
+
+bindings/python:
+  - changed-files:
+      - any-glob-to-any-file:
+        - "bindings/python/**"
+
+bindings/wasm:
+  - changed-files:
+      - any-glob-to-any-file:
+        - "bindings/wasm/**"
+
+tests:
+  - changed-files:
+      - any-glob-to-any-file:
+        - "tests/**"
+        - "test-vectors/**"
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+        - ".github/workflows/**"
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file:
+        - "docs/**"
+        - "*.md"
+        - "man/**"
+
+supply-chain:
+  - changed-files:
+      - any-glob-to-any-file:
+        - ".github/workflows/release.yml"
+        - ".github/workflows/scorecard.yml"
+        - ".github/workflows/reproducible-pack.yml"
+        - ".github/workflows/codeql.yml"
+        - "CITATION.cff"
+        - "SECURITY.md"

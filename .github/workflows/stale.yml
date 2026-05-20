@@ -1,0 +1,47 @@
+name: Stale issues / PRs
+
+on:
+  schedule:
+    - cron: "23 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+  contents: read
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v9
+        with:
+          # Issues
+          days-before-issue-stale: 90
+          days-before-issue-close: 30
+          stale-issue-message: |
+            This issue has been inactive for 90 days. It will be closed
+            automatically in 30 days if there is no further activity.
+            Comment to keep it open. **Security-sensitive issues should
+            never appear here** — use the private security advisory
+            channel described in SECURITY.md.
+          close-issue-message: |
+            Closing as inactive. Reopen if this is still relevant; the
+            project doesn't garbage-collect history.
+          exempt-issue-labels: "security,spec,refusal-case,help-wanted,pinned"
+
+          # PRs
+          days-before-pr-stale: 60
+          days-before-pr-close: 30
+          stale-pr-message: |
+            This PR has been inactive for 60 days. It will be closed
+            automatically in 30 days unless updated. Rebasing or asking
+            for review re-activates it.
+          close-pr-message: |
+            Closing as inactive. Reopen once you have updates.
+          exempt-pr-labels: "pinned,wip"
+
+          # Don't churn on issues someone is actively working on.
+          remove-stale-when-updated: true
+          ascending: true
+          operations-per-run: 60

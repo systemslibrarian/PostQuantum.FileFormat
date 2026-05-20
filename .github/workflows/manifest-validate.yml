@@ -1,0 +1,45 @@
+name: Manifest schema validate
+
+on:
+  push:
+    paths:
+      - "test-vectors/v1/manifest.json"
+      - "test-vectors/v1/manifest.schema.json"
+      - ".github/workflows/manifest-validate.yml"
+  pull_request:
+    paths:
+      - "test-vectors/v1/manifest.json"
+      - "test-vectors/v1/manifest.schema.json"
+      - ".github/workflows/manifest-validate.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: jsonschema manifest validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install jsonschema
+        run: pip install "jsonschema>=4.21"
+
+      - name: Validate manifest against schema
+        run: |
+          python - <<'PY'
+          import json, sys
+          from jsonschema import Draft202012Validator
+          schema = json.load(open("test-vectors/v1/manifest.schema.json"))
+          manifest = json.load(open("test-vectors/v1/manifest.json"))
+          v = Draft202012Validator(schema)
+          errs = sorted(v.iter_errors(manifest), key=lambda e: e.path)
+          if errs:
+              for e in errs:
+                  print(f"::error::manifest invalid at {list(e.path)}: {e.message}")
+              sys.exit(1)
+          print(f"OK: manifest validates against schema ({len(manifest['Vectors'])} vectors, {len(manifest['Identities'])} identities).")
+          PY

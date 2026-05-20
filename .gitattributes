@@ -1,0 +1,43 @@
+# Line endings: enforce LF on source files so cross-platform contributors
+# (and git on Windows with autocrlf=true) don't produce noisy diffs when
+# checking out + recommitting. The .pqf binary cases under test-vectors/
+# and the wasm bundle artifacts must be left alone.
+
+* text=auto eol=lf
+
+# Markdown, source, scripts, and config files: always LF on disk.
+*.md            text eol=lf
+*.cs            text eol=lf
+*.csproj        text eol=lf
+*.sln           text eol=lf -merge=union
+*.props         text eol=lf
+*.targets       text eol=lf
+*.json          text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+*.toml          text eol=lf
+*.rs            text eol=lf
+*.py            text eol=lf
+*.sh            text eol=lf
+*.ps1           text eol=crlf
+*.html          text eol=lf
+*.css           text eol=lf
+*.cddl          text eol=lf
+*.spthy         text eol=lf
+*.pv            text eol=lf
+
+# Binary or quasi-binary artifacts: never normalize.
+*.pqf           binary
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.wasm          binary
+*.nupkg         binary
+*.snupkg        binary
+*.req           binary
+*.rsp           binary
+
+# Generated; treat as binary so git doesn't compute a diff.
+*.lock          -diff
+Cargo.lock      -diff

@@ -179,6 +179,35 @@ CODE_OF_CONDUCT.md               Contributor Covenant 2.1
 - **No silent recovery.** There are no "best effort" paths. Any deviation from the spec terminates processing with an explicit, typed error.
 - **Conformance is testable.** [SPEC-CHECKLIST.md](SPEC-CHECKLIST.md) enumerates the normative items. The implementation is gated against committed test vectors under [tests/PostQuantum.FileFormat.TestVectors](tests/PostQuantum.FileFormat.TestVectors).
 
+## Performance
+
+Indicative numbers from a single-machine `BenchmarkDotNet` run on
+.NET 8.0.27 / Windows 11. **Not a substitute for measuring on your
+own hardware** — crypto throughput is dominated by primitive
+implementations whose constant factors vary by CPU. The benchmark
+project is `tests/PostQuantum.FileFormat.Bench`; the README in there
+explains how to reproduce.
+
+| Operation | 64 KiB | 1 MiB | 16 MiB |
+|---|---:|---:|---:|
+| `Encrypt_unsigned` (single recipient) | ~1.1 ms | ~2.2 ms | ~18 ms |
+| `Decrypt_authenticated` (single recipient) | ~0.93 ms | ~2.3 ms | ~29 ms |
+| `Parse_header_only` | ~9 µs (independent of plaintext size) | — | — |
+
+At 16 MiB plaintext this is roughly **0.9 GiB/s encrypt and
+0.6 GiB/s decrypt** on a single core, which is fast enough for
+file-at-rest use cases and not fast enough for line-rate disk
+streaming. The asymmetry — decrypt slower than encrypt — comes from
+Authenticated Mode's verify-before-release contract: above its
+threshold the reader stages plaintext to a 0600 tempfile so the file
+signature can be verified before any byte is released.
+
+For multi-recipient cost, `MultiRecipientBenchmarks` shows encrypt
+scales ~linearly in N because the writer runs one X25519/ML-KEM pair
+per recipient. Decrypt cost is independent of N because the reader
+runs the recipient-trial loop in constant time over the recipient
+list (one full pass regardless of which block matches).
+
 ## Current implementation limits
 
 - The legacy `PqfFileReader.OpenForValidation` helper still operates on a fully materialized byte buffer (preserved for tests and for callers who already have the file in memory). Production decryption now goes through `PqfStreamingPipeline`, which reads from a `Stream` directly: only the header (≤ 1 MiB per spec) and one in-flight chunk (≤ 16 MiB + AEAD tag) are buffered. Authenticated mode still stages plaintext to a 0600-mode `DeleteOnClose` tempfile above 100 MiB so the file signature can be verified before any byte is released to the destination — that staging is required by the security model, not by the parser.

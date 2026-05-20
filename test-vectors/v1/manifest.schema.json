@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/systemslibrarian/PostQuantum.FileFormat/blob/main/test-vectors/v1/manifest.schema.json",
+  "title": "PQF v1 conformance manifest",
+  "description": "Schema for test-vectors/v1/manifest.json. The manifest lists identities (with private keys) used by the conformance runner and enumerates every positive and negative test vector under cases/.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["Version", "Identities", "Vectors"],
+  "properties": {
+    "Version": {
+      "type": "string",
+      "pattern": "^v[0-9]+(-[a-z]+)?$",
+      "description": "Manifest format version. 'v1' for the canonical committed set; 'v1-differential' for ephemeral randomized batches produced by the differential test driver."
+    },
+    "Identities": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/identity" }
+    },
+    "Vectors": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/vector" }
+    }
+  },
+  "$defs": {
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["Id", "PublicKey", "X25519PrivateKey", "MlKem1024PrivateKey"],
+      "properties": {
+        "Id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Short identifier referenced from each vector's `Identity` field."
+        },
+        "PublicKey": {
+          "type": "string",
+          "contentEncoding": "base64",
+          "description": "Base64-encoded 1601-byte canonical public key (0x01 || X25519 || ML-KEM-1024)."
+        },
+        "X25519PrivateKey": {
+          "type": "string",
+          "contentEncoding": "base64",
+          "description": "Base64-encoded raw 32-byte X25519 scalar."
+        },
+        "MlKem1024PrivateKey": {
+          "type": "string",
+          "contentEncoding": "base64",
+          "description": "Base64-encoded 3168-byte FIPS 203 expanded decapsulation key (ML-KEM-1024)."
+        }
+      }
+    },
+    "vector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["Id", "File", "Expect", "Identity", "StreamingPostHocFailure"],
+      "properties": {
+        "Id": {
+          "type": "string",
+          "pattern": "^(TV|RAND)-[A-Z0-9]+-?[0-9]*$"
+        },
+        "File": {
+          "type": "string",
+          "pattern": "^cases/.+\\.pqf$"
+        },
+        "Expect": {
+          "enum": ["success", "failure"]
+        },
+        "Identity": {
+          "type": "string",
+          "description": "Identifier of the identity used to decrypt this vector."
+        },
+        "Reason": {
+          "type": ["string", "null"],
+          "description": "Expected PqfRefusalReason member name (failure vectors only)."
+        },
+        "StreamingPostHocFailure": {
+          "type": "boolean",
+          "description": "If true, the streaming reader is expected to emit plaintext before the post-hoc check fails; if false, the failure is detected before any plaintext is released."
+        },
+        "PlaintextSha256": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9A-Fa-f]{64}$",
+          "description": "Hex SHA-256 of the expected plaintext (success vectors only)."
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "Expect": { "const": "success" } } },
+          "then": {
+            "required": ["PlaintextSha256"],
+            "properties": {
+              "PlaintextSha256": { "type": "string" },
+              "Reason": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "Expect": { "const": "failure" } } },
+          "then": {
+            "required": ["Reason"],
+            "properties": {
+              "Reason": { "type": "string" },
+              "PlaintextSha256": { "type": "null" }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

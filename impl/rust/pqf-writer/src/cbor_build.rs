@@ -11,7 +11,9 @@
 //! against committed test vector bytes.
 
 use crate::error::{WriterError, WriterResult};
-use crate::{RecipientMaterial, SignerMaterial};
+use crate::RecipientMaterial;
+#[allow(unused_imports)]
+use crate::SignerMaterial;
 
 const HEADER_MAX_LEN: usize = 1_048_576;
 
@@ -138,13 +140,15 @@ fn write_alg_map(buf: &mut Vec<u8>) {
 }
 
 fn write_signer_map(buf: &mut Vec<u8>, s: &SignerMaterial) {
-    // Keys: classical_pub, pqc_pub. Both equal-encoded-length so
-    // bytewise lex on the text decides: classical_pub < pqc_pub.
+    // RFC 8949 §4.2.1 sorts by bytewise lex over the encoded key. The
+    // encoded forms are 0x6d 63 6c... for "classical_pub" (13 chars) and
+    // 0x67 70 71 63... for "pqc_pub" (7 chars). 0x67 < 0x6d so
+    // "pqc_pub" must come FIRST.
     write_type_and_len(buf, 5, 2);
-    write_text(buf, "classical_pub");
-    write_bstr(buf, &s.classical_pub);
     write_text(buf, "pqc_pub");
     write_bstr(buf, &s.pqc_pub);
+    write_text(buf, "classical_pub");
+    write_bstr(buf, &s.classical_pub);
 }
 
 #[doc(hidden)]

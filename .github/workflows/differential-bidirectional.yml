@@ -1,0 +1,128 @@
+name: Differential (Rust writer -> .NET reader)
+
+# Encrypts random plaintexts with the Rust writer, then decrypts with
+# the .NET reference reader. Closes the cross-impl loop in the
+# direction the existing rust-conformance and differential jobs do not
+# cover: defects in the Rust ENCODER will fail here, even though the
+# Rust reader and the .NET reader+writer all pass their own gates.
+
+on:
+  push:
+    paths:
+      - "impl/rust/pqf-writer/**"
+      - "impl/rust/pqf-reader/**"
+      - "src/**"
+      - ".github/workflows/differential-bidirectional.yml"
+  pull_request:
+    paths:
+      - "impl/rust/pqf-writer/**"
+      - "impl/rust/pqf-reader/**"
+      - "src/**"
+      - ".github/workflows/differential-bidirectional.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  differential:
+    name: 8 Rust-encoded files — .NET reader must accept
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            impl/rust/pqf-writer/target
+            impl/rust/pqf-reader/target
+          key: ${{ runner.os }}-cargo-bidi-${{ hashFiles('impl/rust/pqf-writer/Cargo.toml', 'impl/rust/pqf-reader/Cargo.toml') }}
+
+      - name: Build the Rust writer + a small CLI driver
+        working-directory: impl/rust/pqf-writer
+        run: |
+          # Inline a one-shot binary that exercises the writer. This
+          # avoids carrying a separate crate just for the differential
+          # gate, and the test is dead simple: read identity, read
+          # plaintext, encrypt, write file.
+          mkdir -p src/bin
+          cat > src/bin/encrypt_to_file.rs <<'RS'
+          use pqf_writer::{encrypt_to_bytes, RecipientPublicKey};
+          use std::env;
+          use std::fs;
+
+          fn main() {
+              let args: Vec<String> = env::args().collect();
+              if args.len() != 5 {
+                  eprintln!("usage: encrypt_to_file <pubkey.bin> <plaintext.bin> <out.pqf> <chunk_size>");
+                  std::process::exit(2);
+              }
+              let pub_bytes = fs::read(&args[1]).expect("read pubkey");
+              let plaintext = fs::read(&args[2]).expect("read plaintext");
+              let chunk: u32 = args[4].parse().expect("chunk_size u32");
+              let recipient = RecipientPublicKey::from_canonical(&pub_bytes).expect("pubkey form");
+              let out = encrypt_to_bytes(&plaintext, &[recipient], chunk).expect("encrypt");
+              fs::write(&args[3], &out).expect("write");
+          }
+          RS
+
+          cargo build --release --bin encrypt_to_file
+
+      - name: Set up a recipient (.NET generates the keys)
+        run: |
+          dotnet restore PostQuantum.FileFormat.sln
+          dotnet build PostQuantum.FileFormat.sln -c Release --no-restore
+          dotnet run --project cli/PostQuantum.FileFormat.Cli -c Release --no-build -- \
+            keygen --type encrypt \
+              --public-out  /tmp/recipient.pub.pem \
+              --private-out /tmp/recipient.key.json
+          # Convert PEM-armored public key to canonical 1601-byte binary so
+          # the Rust writer can consume it. The CLI exposes this via the
+          # `fingerprint --raw` path or similar; if not, we decode the PEM
+          # base64 body here.
+          python3 - <<'PY'
+          import base64, pathlib, re
+          src = pathlib.Path("/tmp/recipient.pub.pem").read_text()
+          body = re.sub(r"-----.*-----", "", src).replace("\n", "").strip()
+          raw = base64.b64decode(body)
+          pathlib.Path("/tmp/recipient.pub.bin").write_bytes(raw)
+          print(f"wrote {len(raw)} bytes")
+          PY
+
+      - name: Generate 8 random plaintexts and encrypt with the Rust writer
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/rust-encoded
+          for i in 1 2 3 4 5 6 7 8; do
+            size=$((1024 * i + 7))
+            head -c "$size" /dev/urandom > "/tmp/pt-$i.bin"
+            ./impl/rust/pqf-writer/target/release/encrypt_to_file \
+              /tmp/recipient.pub.bin "/tmp/pt-$i.bin" "/tmp/rust-encoded/$i.pqf" 4096
+            echo "  encrypted $i (plaintext $size bytes)"
+          done
+
+      - name: Decrypt with the .NET reference reader
+        run: |
+          set -euo pipefail
+          fail=0
+          for i in 1 2 3 4 5 6 7 8; do
+            dotnet run --project cli/PostQuantum.FileFormat.Cli -c Release --no-build -- \
+              decrypt --in "/tmp/rust-encoded/$i.pqf" --out "/tmp/dec-$i.bin" \
+              --identity /tmp/recipient.key.json --mode authenticated \
+              || { echo "::error::.NET reader rejected Rust-encoded file $i"; fail=1; continue; }
+            if ! cmp -s "/tmp/pt-$i.bin" "/tmp/dec-$i.bin"; then
+              echo "::error::Roundtrip mismatch on file $i"
+              fail=1
+            fi
+          done
+          exit $fail
