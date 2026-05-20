@@ -3,6 +3,9 @@
 PQF is a specification and reference implementation for hybrid post-quantum encrypted files at rest.
 
 [![CI](https://github.com/systemslibrarian/PostQuantum.FileFormat/actions/workflows/ci.yml/badge.svg)](https://github.com/systemslibrarian/PostQuantum.FileFormat/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/systemslibrarian/PostQuantum.FileFormat/actions/workflows/codeql.yml/badge.svg)](https://github.com/systemslibrarian/PostQuantum.FileFormat/actions/workflows/codeql.yml)
+[![Differential](https://github.com/systemslibrarian/PostQuantum.FileFormat/actions/workflows/differential.yml/badge.svg)](https://github.com/systemslibrarian/PostQuantum.FileFormat/actions/workflows/differential.yml)
+[![Reproducible pack](https://github.com/systemslibrarian/PostQuantum.FileFormat/actions/workflows/reproducible-pack.yml/badge.svg)](https://github.com/systemslibrarian/PostQuantum.FileFormat/actions/workflows/reproducible-pack.yml)
 [![NuGet](https://img.shields.io/nuget/vpre/PostQuantum.FileFormat.Cli.svg?label=nuget%20%28pqf%29)](https://www.nuget.org/packages/PostQuantum.FileFormat.Cli/)
 [![Downloads](https://img.shields.io/nuget/dt/PostQuantum.FileFormat.Cli.svg)](https://www.nuget.org/packages/PostQuantum.FileFormat.Cli/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
