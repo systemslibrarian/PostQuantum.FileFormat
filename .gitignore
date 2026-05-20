@@ -20,3 +20,8 @@ artifacts/
 # OS
 .DS_Store
 Thumbs.db
+
+# NIST KAT vector files (large, fetched on demand by scripts/fetch-nist-kat.sh)
+test-vectors/nist-kat/*.rsp
+test-vectors/nist-kat/*.req
+

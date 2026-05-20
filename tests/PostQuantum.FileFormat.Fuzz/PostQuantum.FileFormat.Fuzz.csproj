@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Fuzz harness for the PQF reader.
+
+    This is a console app, not a test project: it is invoked from CI as
+    `dotnet run -- --time <seconds> --target <header|streaming|cbor>` and
+    treated as a sanity-check fuzz pass. Long-running campaigns happen out
+    of band; OSS-Fuzz integration is tracked separately.
+
+    The harness deliberately targets the *parser* and *refusal paths*:
+      - DeterministicCborValidator.ParseStrict
+      - HeaderCborReader.Parse (via PqfStreamingPipeline.OpenAsync)
+      - PqfStreamingPipeline.OpenAsync (full container)
+
+    A "find" is any input that triggers an exception other than
+    PqfFileException or CborValidationException — i.e. a panic in the
+    parser. PqfFileException is the *correct* result for malformed input;
+    seeing one is the harness doing its job.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>PostQuantum.FileFormat.Fuzz</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PostQuantum.FileFormat\PostQuantum.FileFormat.csproj" />
+  </ItemGroup>
+
+</Project>
