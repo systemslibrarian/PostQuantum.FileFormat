@@ -73,14 +73,15 @@ The current blockers are tracked in
 3. A second-language reader implementation passing the full cross-impl
    conformance gate (the Rust reader under `impl/rust/` is the
    in-tree second source; a second writer is desired but not blocking).
-4. Reproducible test-vector regeneration in CI. Currently gates the
-   **unsigned** subset of vectors (positive odd-numbered TV-NNN and
-   the unsigned-derived TV-NEG cases). Extending the gate to signed
-   vectors requires a deterministic ML-DSA-87 signing path: FIPS 204's
-   default signing is randomized, so two runs of the writer over the
-   same seeded inputs produce signed `.pqf` bytes that differ only in
-   the signature region. The cross-impl Rust reader gate still
-   exercises the signed vectors end-to-end.
+4. Reproducible test-vector regeneration in CI — **both signed and
+   unsigned vectors gated.** Two runs of the writer over the same
+   seeded inputs produce byte-identical `.pqf` files because:
+   Ed25519 is deterministic per RFC 8032 §5.1.6; ML-DSA-87 signing is
+   threaded through the FIPS 204 deterministic variant (rnd = 0) via
+   `ICryptoProvider.MlDsa87SignDeterministic`; the per-recipient KEM
+   ciphertexts and AES-GCM nonces derive from an injectable RNG seeded
+   from the test-vector ID. The cross-impl Rust reader gate exercises
+   the same vectors end-to-end with an independent parser.
 
 A v1.0.0 release will **never** be cut to clear a deadline. The wire
 format only freezes when the open questions are resolved.

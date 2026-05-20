@@ -193,6 +193,7 @@ static async Task<byte[]> BuildEncryptedAsync(
         provider,
         rng,
         createdUtc: new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero),
+        deterministicSigning: true,
         cancellationToken: default);
 
     return destination.ToArray();

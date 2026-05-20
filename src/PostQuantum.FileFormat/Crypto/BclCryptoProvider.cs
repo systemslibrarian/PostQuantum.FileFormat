@@ -73,6 +73,14 @@ public sealed class BclCryptoProvider : ICryptoProvider
             ? BclMlDsaBridge.Sign(sk, message)
             : _fallback.MlDsa87Sign(sk, message);
 
+    // Deterministic FIPS 204 signing path. The .NET BCL MLDsa surface does
+    // not currently expose an "rnd = 0" knob in a stable API, so we always
+    // delegate to the BouncyCastle fallback for this path. Deterministic
+    // signing is used for vector regeneration and explicit-repeatability
+    // callers; both are fine with the BC backend.
+    public byte[] MlDsa87SignDeterministic(ReadOnlySpan<byte> sk, ReadOnlySpan<byte> message) =>
+        _fallback.MlDsa87SignDeterministic(sk, message);
+
     public bool MlDsa87Verify(ReadOnlySpan<byte> pk, ReadOnlySpan<byte> message, ReadOnlySpan<byte> signature) =>
         BclMlDsaBridge.MlDsa87Supported
             ? BclMlDsaBridge.Verify(pk, message, signature)

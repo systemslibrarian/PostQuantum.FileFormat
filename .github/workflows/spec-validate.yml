@@ -1,0 +1,66 @@
+name: Spec validate (CDDL)
+
+# Runs the cddl gem against the committed CDDL schema and against every
+# test-vector header. A non-zero exit means either the schema is malformed
+# or a committed positive vector's header no longer conforms to the
+# schema — both are spec-level defects.
+
+on:
+  push:
+    paths:
+      - "spec/**"
+      - "test-vectors/**"
+      - ".github/workflows/spec-validate.yml"
+  pull_request:
+    paths:
+      - "spec/**"
+      - "test-vectors/**"
+      - ".github/workflows/spec-validate.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  cddl:
+    name: CDDL schema check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+
+      - name: Install cddl gem
+        run: gem install cddl --version "~> 0.11"
+
+      - name: Validate the CDDL schema itself
+        run: cddl spec/pqf-header.cddl generate 1 > /dev/null
+
+      - name: Validate every positive vector's header against the CDDL
+        run: |
+          set -euo pipefail
+          # Build the header-extractor and run it against every committed
+          # POSITIVE vector (TV-NNN); the negative TV-NEG-* set is
+          # deliberately malformed by construction and would fail CDDL.
+          dotnet build cli/PostQuantum.FileFormat.Cli -c Release --nologo -v minimal
+          ok=0
+          for f in test-vectors/v1/cases/TV-[0-9]*.pqf; do
+            header_cbor="$(mktemp)"
+            # Header bytes start at offset 10 (PQF1 magic + version + length).
+            # Length is u32 BE at offset 6.
+            len="$(python3 -c "
+import sys, struct
+with open('$f','rb') as fh:
+    fh.seek(6)
+    n, = struct.unpack('>I', fh.read(4))
+print(n)")"
+            dd if="$f" of="$header_cbor" bs=1 skip=10 count="$len" status=none
+            cddl spec/pqf-header.cddl validate "$header_cbor" \
+              && echo "  OK: $(basename "$f")" \
+              || { echo "  FAIL: $(basename "$f")"; ok=1; }
+            rm -f "$header_cbor"
+          done
+          exit $ok

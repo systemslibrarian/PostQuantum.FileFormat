@@ -1,0 +1,76 @@
+; PQF v1 header schema, formal CDDL (RFC 8610).
+;
+; This file is the machine-checkable counterpart to spec/PQF-SPEC-v1.md §4.
+; If the prose and this CDDL disagree, the prose is normative — file a
+; spec-review issue.
+;
+; The on-disk encoding is deterministic CBOR (RFC 8949 §4.2.2). CDDL itself
+; cannot express deterministic-encoding requirements (canonical integer
+; widths, map-key ordering, definite-length only). Those are imposed by
+; the prose and enforced by the reader; this schema only constrains the
+; abstract structure.
+;
+; Validate locally with:
+;   gem install cddl
+;   cddl spec/pqf-header.cddl validate <(your-cbor-bytes)
+;
+; CI runs cddl-tool against every committed test-vector header in the
+; .github/workflows/spec-validate.yml job.
+
+; --- top-level ----------------------------------------------------------------
+
+pqf-header = {
+    "alg"         : pqf-alg,
+    "chunk_size"  : pqf-chunk-size,
+    "created"     : pqf-created,
+    "file_id"     : pqf-file-id,
+    "recipients"  : pqf-recipients,
+    ? "signer"    : pqf-signer / null,    ; absent or null => unsigned
+}
+
+; --- alg map (§4.2.1) ---------------------------------------------------------
+;
+; All five fields are REQUIRED. Exact string values are REQUIRED. No other
+; fields are permitted. CDDL's closed-map (`{ ... }` without `*`) catches
+; the "no other fields" rule; exact-value pinning catches the rest.
+
+pqf-alg = {
+    "aead"     : "aes-256-gcm-chunked",
+    "combiner" : "pqf1-concat-extract-v1",
+    "kdf"      : "hkdf-sha256",
+    "kem"      : "x25519+ml-kem-1024",
+    "sig"      : "ed25519+ml-dsa-87",
+}
+
+; --- scalars ------------------------------------------------------------------
+
+; chunk_size is a power of 2 between 4096 and 16_777_216. CDDL has no
+; "power of two" predicate; the reader enforces it. Range-only here.
+pqf-chunk-size = 4096..16777216
+
+; CBOR tag 0 is RFC 3339 text per RFC 8949 §3.4.1.
+pqf-created = #6.0(tstr)
+
+; 16 bytes of file_id used as AAD throughout the file.
+pqf-file-id = bstr .size 16
+
+; --- recipients (§4.2.2) ------------------------------------------------------
+;
+; Non-empty array; each entry is a closed map with exactly four fields and
+; precise byte-string sizes.
+
+pqf-recipients = [+ pqf-recipient]
+
+pqf-recipient = {
+    "classical_epk"     : bstr .size 32,    ; X25519 ephemeral pk
+    "pqc_ct"            : bstr .size 1568,  ; ML-KEM-1024 ciphertext
+    "wrapped_dek"       : bstr .size 48,    ; 32-byte DEK + 16-byte GCM tag
+    "wrapped_dek_nonce" : bstr .size 12,    ; AES-GCM nonce for wrap
+}
+
+; --- signer (§4.2.3) ----------------------------------------------------------
+
+pqf-signer = {
+    "classical_pub" : bstr .size 32,     ; Ed25519 public key
+    "pqc_pub"       : bstr .size 2592,   ; ML-DSA-87 public key
+}

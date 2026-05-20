@@ -15,9 +15,24 @@ public sealed class HybridSigner
     }
 
     public byte[] Sign(PqfSigningIdentity identity, ReadOnlySpan<byte> message)
+        => SignCore(identity, message, deterministic: false);
+
+    /// <summary>
+    /// Hybrid sign using FIPS 204 deterministic ML-DSA-87 (rnd = 0).
+    /// Ed25519 is already deterministic per RFC 8032 §5.1.6, so the full
+    /// hybrid signature is byte-identical across runs for the same
+    /// (signing-identity, message) pair. Used for byte-deterministic test
+    /// vector regeneration; not the recommended default for new files.
+    /// </summary>
+    public byte[] SignDeterministic(PqfSigningIdentity identity, ReadOnlySpan<byte> message)
+        => SignCore(identity, message, deterministic: true);
+
+    private byte[] SignCore(PqfSigningIdentity identity, ReadOnlySpan<byte> message, bool deterministic)
     {
         var edSig = _provider.Ed25519Sign(identity.Ed25519PrivateKey.Span, message);
-        var pqSig = _provider.MlDsa87Sign(identity.MlDsa87PrivateKey.Span, message);
+        var pqSig = deterministic
+            ? _provider.MlDsa87SignDeterministic(identity.MlDsa87PrivateKey.Span, message)
+            : _provider.MlDsa87Sign(identity.MlDsa87PrivateKey.Span, message);
 
         if (edSig.Length != 64 || pqSig.Length != 4627)
         {

@@ -174,13 +174,21 @@ public sealed class BouncyCastleCryptoProvider : ICryptoProvider
     }
 
     public byte[] MlDsa87Sign(ReadOnlySpan<byte> sk, ReadOnlySpan<byte> message)
+        => MlDsa87SignCore(sk, message, deterministic: false);
+
+    public byte[] MlDsa87SignDeterministic(ReadOnlySpan<byte> sk, ReadOnlySpan<byte> message)
+        => MlDsa87SignCore(sk, message, deterministic: true);
+
+    private byte[] MlDsa87SignCore(ReadOnlySpan<byte> sk, ReadOnlySpan<byte> message, bool deterministic)
     {
-        // See note on X25519DeriveSharedSecret.
+        // See note on X25519DeriveSharedSecret. The second MLDsaSigner ctor
+        // arg is the FIPS 204 deterministic flag: true => rnd is zero,
+        // signatures over the same (sk, message) are byte-identical.
         var skCopy = new byte[sk.Length];
         try
         {
             sk.CopyTo(skCopy);
-            var signer = new MLDsaSigner(MLDsaParameters.ml_dsa_87, false);
+            var signer = new MLDsaSigner(MLDsaParameters.ml_dsa_87, deterministic);
             var privateKey = MLDsaPrivateKeyParameters.FromEncoding(MLDsaParameters.ml_dsa_87, skCopy);
             signer.Init(true, privateKey);
             signer.BlockUpdate(message);

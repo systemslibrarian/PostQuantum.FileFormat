@@ -29,6 +29,7 @@ public static class PqfFileWriter
             provider,
             randomness: null,
             createdUtc: null,
+            deterministicSigning: false,
             cancellationToken).ConfigureAwait(false);
     }
 
@@ -41,6 +42,7 @@ public static class PqfFileWriter
         ICryptoProvider? provider,
         InjectableRandomness? randomness,
         DateTimeOffset? createdUtc,
+        bool deterministicSigning,
         CancellationToken cancellationToken)
     {
         if (recipients is null || recipients.Count == 0)
@@ -103,7 +105,9 @@ public static class PqfFileWriter
             byte[]? headerSignature = null;
             if (signer is not null)
             {
-                headerSignature = hybridSigner.Sign(signer, headerBytes);
+                headerSignature = deterministicSigning
+                    ? hybridSigner.SignDeterministic(signer, headerBytes)
+                    : hybridSigner.Sign(signer, headerBytes);
             }
 
             // magic + version + header length
@@ -173,7 +177,9 @@ public static class PqfFileWriter
                 chunksHash.CopyTo(signatureMessage, 16);
                 footer.CopyTo(signatureMessage, 48);
 
-                var fileSignature = hybridSigner.Sign(signer, signatureMessage);
+                var fileSignature = deterministicSigning
+                    ? hybridSigner.SignDeterministic(signer, signatureMessage)
+                    : hybridSigner.Sign(signer, signatureMessage);
                 await destination.WriteAsync(fileSignature, cancellationToken).ConfigureAwait(false);
 
                 SecureZero.Clear(chunksHash);

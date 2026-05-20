@@ -245,7 +245,8 @@ recipients requires approximately 180 KiB of header, well within the limit.
 
 The header is a CBOR map with the following fields. CBOR diagnostic notation
 is used below for illustration only; the on-disk encoding is deterministic
-CBOR binary.
+CBOR binary. A machine-checkable CDDL counterpart lives at
+[`spec/pqf-header.cddl`](./pqf-header.cddl) and is enforced in CI.
 
 ```
 {
