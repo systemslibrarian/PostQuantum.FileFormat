@@ -205,11 +205,21 @@ Authenticated Mode's verify-before-release contract: above its
 threshold the reader stages plaintext to a 0600 tempfile so the file
 signature can be verified before any byte is released.
 
-For multi-recipient cost, `MultiRecipientBenchmarks` shows encrypt
-scales ~linearly in N because the writer runs one X25519/ML-KEM pair
-per recipient. Decrypt cost is independent of N because the reader
-runs the recipient-trial loop in constant time over the recipient
-list (one full pass regardless of which block matches).
+Multi-recipient cost (64 KiB plaintext, same machine):
+
+| Recipients | Encrypt | Decrypt as first | Decrypt as last |
+|---:|---:|---:|---:|
+| 1 | ~1.1 ms | ~0.98 ms | ~1.04 ms |
+| 4 | ~2.8 ms | ~3.2 ms | ~3.2 ms |
+| 16 | ~12.0 ms | ~10.4 ms | ~11.3 ms |
+| 64 | ~41.3 ms | ~39.3 ms | ~39.9 ms |
+
+Encrypt scales ~linearly in N as expected — one X25519/ML-KEM pair
+per recipient. **Decrypt is also ~linear in N**, which is the
+recipient-trial loop running over every block to keep the timing
+independent of *which* recipient holds the DEK. The
+"decrypt-as-first" vs "decrypt-as-last" gap is in the noise floor at
+every N — that's the design working.
 
 ## Current implementation limits
 
