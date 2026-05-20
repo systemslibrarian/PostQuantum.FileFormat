@@ -34,12 +34,14 @@ pub use error::{WriterError, WriterResult};
 
 use aes_gcm::aead::{Aead, KeyInit, Payload};
 use aes_gcm::{Aes256Gcm, Nonce};
+use ed25519_dalek::{Signer, SigningKey as EdSigningKey};
 use hkdf::Hkdf;
+use ml_dsa::{MlDsa87, SigningKey as MlDsaSigningKey};
 use ml_kem::kem::Encapsulate;
 use ml_kem::{Encoded, EncodedSizeUser, KemCore, MlKem1024};
 use rand::rngs::OsRng;
 use rand::RngCore;
-use sha2::Sha256;
+use sha2::{Digest, Sha256};
 use x25519_dalek::{EphemeralSecret, PublicKey as XPub};
 
 // Format constants — must match impl/rust/pqf-reader/src/reader.rs and the
@@ -56,6 +58,12 @@ const X25519_PK_LEN: usize = 32;
 const MLKEM_PK_LEN: usize = 1568;
 const PUBKEY_VERSION: u8 = 0x01;
 const PUBKEY_TOTAL_LEN: usize = 1 + X25519_PK_LEN + MLKEM_PK_LEN;
+
+const ED25519_SIG_LEN: usize = 64;
+const MLDSA87_SIG_LEN: usize = 4627;
+const HYBRID_SIG_LEN: usize = ED25519_SIG_LEN + MLDSA87_SIG_LEN; // 4691
+const MLDSA87_PK_LEN: usize = 2592;
+const MLDSA87_SK_LEN: usize = 4896;
 
 /// A recipient public key in the canonical 1601-byte form:
 /// `0x01 || x25519_pub(32) || mlkem_1024_pub(1568)`.
@@ -95,61 +103,82 @@ impl RecipientPublicKey {
 
 /// Encrypt `plaintext` to the given recipients, producing a complete
 /// unsigned PQF v1 container.
-///
-/// `chunk_size` must be a power of two in `[4096, 16777216]`. The
-/// container is fully materialized in memory (an `Vec<u8>`); streaming
-/// encrypt for plaintexts that do not fit in memory is future work.
 pub fn encrypt_to_bytes(
     plaintext: &[u8],
     recipients: &[RecipientPublicKey],
     chunk_size: u32,
 ) -> WriterResult<Vec<u8>> {
+    encrypt_impl(plaintext, recipients, chunk_size, None)
+}
+
+/// Encrypt + hybrid-sign. Signature covers the header bytes and
+/// `file_id || sha256(chunks) || footer` respectively.
+pub fn encrypt_to_bytes_signed(
+    plaintext: &[u8],
+    recipients: &[RecipientPublicKey],
+    chunk_size: u32,
+    signer: &SigningIdentity,
+) -> WriterResult<Vec<u8>> {
+    encrypt_impl(plaintext, recipients, chunk_size, Some(signer))
+}
+
+fn encrypt_impl(
+    plaintext: &[u8],
+    recipients: &[RecipientPublicKey],
+    chunk_size: u32,
+    signer: Option<&SigningIdentity>,
+) -> WriterResult<Vec<u8>> {
     if recipients.is_empty() {
         return Err(WriterError::NotYetImplemented(
-            "encrypt_to_bytes: at least one recipient is required",
+            "encrypt: at least one recipient is required",
         ));
     }
     if !(chunk_size >= 4096 && chunk_size <= 16_777_216 && chunk_size.is_power_of_two()) {
         return Err(WriterError::InvalidChunkSize(chunk_size));
     }
 
-    // Per-file material.
     let mut rng = OsRng;
     let mut file_id = [0u8; 16];
     rng.fill_bytes(&mut file_id);
     let mut dek = [0u8; 32];
     rng.fill_bytes(&mut dek);
 
-    // Build recipient blocks: per-recipient (epk, ct, wrapped_dek, nonce).
     let mut recipient_materials: Vec<RecipientMaterial> = Vec::with_capacity(recipients.len());
     for (idx, r) in recipients.iter().enumerate() {
         recipient_materials.push(build_recipient_block(idx as u32, &file_id, &dek, r)?);
     }
 
-    // Header. Today: no signer (signing-writer is the next deliverable).
     let created = current_rfc3339_utc();
+    let signer_material = signer.map(|s| SignerMaterial {
+        classical_pub: s.ed25519_pub,
+        pqc_pub: s.mldsa87_pub.clone(),
+    });
     let header_bytes = cbor_build::build_header(
         file_id,
         chunk_size,
         &created,
         &recipient_materials,
-        None,
+        signer_material.as_ref(),
     )?;
 
-    // Assemble: magic + version + header_len + header + chunks + footer.
-    let mut out = Vec::with_capacity(plaintext.len() + 4096);
+    let mut out = Vec::with_capacity(plaintext.len() + 8192);
     out.extend_from_slice(&PQF_MAGIC);
     out.extend_from_slice(&PQF_VERSION.to_be_bytes());
     out.extend_from_slice(&(header_bytes.len() as u32).to_be_bytes());
     out.extend_from_slice(&header_bytes);
 
-    // Chunked AEAD.
+    if let Some(s) = signer {
+        let sig = hybrid_sign(s, &header_bytes)?;
+        out.extend_from_slice(&sig);
+    }
+
     let chunk_sz = chunk_size as usize;
     let total_chunks: u64 = if plaintext.is_empty() {
         0
     } else {
         ((plaintext.len() + chunk_sz - 1) / chunk_sz) as u64
     };
+    let mut chunks_hasher = Sha256::new();
 
     let mut offset = 0usize;
     let mut chunk_idx: u64 = 0;
@@ -158,7 +187,6 @@ pub fn encrypt_to_bytes(
         let is_final = end == plaintext.len();
         let chunk_pt = &plaintext[offset..end];
 
-        // Per-chunk key.
         let mut info = Vec::with_capacity(CHUNK_INFO_PREFIX.len() + 8);
         info.extend_from_slice(CHUNK_INFO_PREFIX);
         info.extend_from_slice(&chunk_idx.to_be_bytes());
@@ -168,38 +196,121 @@ pub fn encrypt_to_bytes(
         hk.expand(&info, &mut chunk_key)
             .map_err(|_| WriterError::NotYetImplemented("HKDF expand for chunk key failed"))?;
 
-        // AAD.
         let mut aad = Vec::with_capacity(16 + 8 + 1);
         aad.extend_from_slice(&file_id);
         aad.extend_from_slice(&chunk_idx.to_be_bytes());
         aad.push(if is_final { 1 } else { 0 });
 
-        // Encrypt with fixed zero nonce (safe because chunk_key is unique per chunk).
         let cipher = Aes256Gcm::new_from_slice(&chunk_key).expect("32-byte key");
         let nonce = Nonce::from_slice(&[0u8; 12]);
         let ct = cipher
             .encrypt(nonce, Payload { msg: chunk_pt, aad: &aad })
             .map_err(|_| WriterError::NotYetImplemented("AEAD encrypt failed"))?;
 
-        // Frame: 1 byte flags, 4 bytes BE length, ciphertext+tag.
         let flags: u8 = if is_final { 0x01 } else { 0x00 };
+        let frame_start = out.len();
         out.push(flags);
         out.extend_from_slice(&(ct.len() as u32).to_be_bytes());
         out.extend_from_slice(&ct);
+        // The reader's chunks_sha256 covers the full on-disk chunk frame
+        // (5-byte prefix + ciphertext+tag).
+        chunks_hasher.update(&out[frame_start..]);
 
         offset = end;
         chunk_idx += 1;
     }
 
-    // Footer.
+    let footer_start = out.len();
     out.extend_from_slice(&FOOTER_MAGIC);
     out.extend_from_slice(&total_chunks.to_be_bytes());
     out.extend_from_slice(&(plaintext.len() as u64).to_be_bytes());
+    let footer_bytes: Vec<u8> = out[footer_start..footer_start + FOOTER_LEN].to_vec();
 
-    // Zeroize DEK before returning. The chunk_key copies are short-lived.
+    if let Some(s) = signer {
+        let chunks_sha = chunks_hasher.finalize();
+        let mut msg = Vec::with_capacity(16 + 32 + FOOTER_LEN);
+        msg.extend_from_slice(&file_id);
+        msg.extend_from_slice(&chunks_sha);
+        msg.extend_from_slice(&footer_bytes);
+        let sig = hybrid_sign(s, &msg)?;
+        out.extend_from_slice(&sig);
+    }
+
     for b in dek.iter_mut() { *b = 0; }
-
     Ok(out)
+}
+
+/// Signing identity (private + public halves of both signing primitives).
+pub struct SigningIdentity {
+    pub ed25519_sk: [u8; 32],
+    pub ed25519_pub: [u8; 32],
+    pub mldsa87_sk: Vec<u8>,
+    pub mldsa87_pub: Vec<u8>,
+}
+
+impl SigningIdentity {
+    pub fn from_raw(
+        ed25519_sk: [u8; 32],
+        ed25519_pub: [u8; 32],
+        mldsa87_sk: Vec<u8>,
+        mldsa87_pub: Vec<u8>,
+    ) -> WriterResult<Self> {
+        if mldsa87_pub.len() != MLDSA87_PK_LEN {
+            return Err(WriterError::RecipientFieldLength {
+                field: "mldsa87_pub",
+                got: mldsa87_pub.len(),
+                want: MLDSA87_PK_LEN,
+            });
+        }
+        if mldsa87_sk.len() != MLDSA87_SK_LEN {
+            return Err(WriterError::RecipientFieldLength {
+                field: "mldsa87_sk",
+                got: mldsa87_sk.len(),
+                want: MLDSA87_SK_LEN,
+            });
+        }
+        Ok(Self { ed25519_sk, ed25519_pub, mldsa87_sk, mldsa87_pub })
+    }
+}
+
+fn hybrid_sign(signer: &SigningIdentity, message: &[u8]) -> WriterResult<[u8; HYBRID_SIG_LEN]> {
+    let ed_sk = EdSigningKey::from_bytes(&signer.ed25519_sk);
+    if ed_sk.verifying_key().to_bytes() != signer.ed25519_pub {
+        return Err(WriterError::NotYetImplemented(
+            "Ed25519 public key does not match the private key",
+        ));
+    }
+    let ed_sig = ed_sk.sign(message).to_bytes();
+
+    let mldsa_sk = decode_mldsa_signing_key(&signer.mldsa87_sk)?;
+    let mldsa_sig_obj = mldsa_sk
+        .sign_deterministic(message, b"")
+        .map_err(|_| WriterError::NotYetImplemented("ML-DSA-87 sign failed"))?;
+    let mldsa_sig_bytes = mldsa_sig_obj.encode();
+    if mldsa_sig_bytes.len() != MLDSA87_SIG_LEN {
+        return Err(WriterError::NotYetImplemented(
+            "ML-DSA-87 signature unexpected length",
+        ));
+    }
+
+    let mut out = [0u8; HYBRID_SIG_LEN];
+    out[..ED25519_SIG_LEN].copy_from_slice(&ed_sig);
+    out[ED25519_SIG_LEN..].copy_from_slice(&mldsa_sig_bytes);
+    Ok(out)
+}
+
+fn decode_mldsa_signing_key(bytes: &[u8]) -> WriterResult<MlDsaSigningKey<MlDsa87>> {
+    let arr: &[u8; MLDSA87_SK_LEN] = bytes.try_into().map_err(|_| {
+        WriterError::RecipientFieldLength {
+            field: "mldsa87_sk",
+            got: bytes.len(),
+            want: MLDSA87_SK_LEN,
+        }
+    })?;
+    let encoded = ml_dsa::EncodedSigningKey::<MlDsa87>::try_from(arr.as_slice()).map_err(|_| {
+        WriterError::NotYetImplemented("ML-DSA-87 signing-key encoding parse failed")
+    })?;
+    Ok(MlDsaSigningKey::<MlDsa87>::decode(&encoded))
 }
 
 /// Material for one entry of the header's `recipients` array, paired with
