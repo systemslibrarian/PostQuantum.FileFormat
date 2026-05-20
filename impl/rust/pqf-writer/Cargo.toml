@@ -1,0 +1,35 @@
+[package]
+name = "pqf-writer"
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+description = "Independent Rust writer for the PQF v1 file format (work in progress)."
+repository = "https://github.com/systemslibrarian/PostQuantum.FileFormat"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+# Reuse the reader's deterministic CBOR encoder and types so writer and
+# reader cannot drift on CBOR encoding rules.
+pqf-reader = { path = "../pqf-reader" }
+
+# Hybrid KEM
+x25519-dalek = { version = "2.0", features = ["static_secrets"] }
+ml-kem = "0.2"
+
+# Hybrid signatures
+ed25519-dalek = { version = "2.1", features = ["std", "rand_core"] }
+ml-dsa = "0.0.4"
+
+# AEAD + hashing + KDF
+aes-gcm = "0.10"
+sha2 = "0.10"
+hkdf = "0.12"
+
+# Encoding utilities
+generic-array = "0.14"
+typenum = "1.17"
+rand = "0.8"
+rand_core = "0.6"

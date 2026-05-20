@@ -1,0 +1,77 @@
+name: Reproducible pack
+
+# Verifies that `dotnet pack` twice over the same commit produces
+# byte-identical nupkgs. A diff indicates a non-determinism leak —
+# usually an unmapped path, a missing PathMap entry, or a timestamp
+# that's not suppressed by ContinuousIntegrationBuild=true.
+
+on:
+  push:
+    paths:
+      - "Directory.Build.props"
+      - "**/*.csproj"
+      - "**/*.cs"
+      - ".github/workflows/reproducible-pack.yml"
+  pull_request:
+    paths:
+      - "Directory.Build.props"
+      - "**/*.csproj"
+      - "**/*.cs"
+      - ".github/workflows/reproducible-pack.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  pack-twice:
+    name: pack × 2 — byte-identical
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Pack run 1
+        run: |
+          rm -rf out1 out2
+          mkdir out1 out2
+          dotnet pack cli/PostQuantum.FileFormat.Cli/PostQuantum.FileFormat.Cli.csproj \
+            -c Release -o out1 /p:ContinuousIntegrationBuild=true
+
+      - name: Pack run 2
+        run: |
+          dotnet pack cli/PostQuantum.FileFormat.Cli/PostQuantum.FileFormat.Cli.csproj \
+            -c Release -o out2 /p:ContinuousIntegrationBuild=true
+
+      - name: Diff nupkgs (byte-identical required, modulo NuGet psmdcp filename)
+        run: |
+          set -euo pipefail
+          NUPKG=$(basename "$(ls out1/*.nupkg | head -n1)")
+          mkdir -p unpack1 unpack2
+          unzip -q "out1/$NUPKG" -d unpack1
+          unzip -q "out2/$NUPKG" -d unpack2
+
+          # NuGet's OPC packager names the core-properties file with a fresh
+          # GUID on every pack — see dotnet/sdk #6655. Two runs of the same
+          # commit produce different psmdcp filenames and different Id="..."
+          # references in _rels/.rels, but the property metadata itself is
+          # identical. Normalize both before diffing.
+          for d in unpack1 unpack2; do
+            psmdcp=$(find "$d/package/services/metadata/core-properties" -name '*.psmdcp')
+            if [ -n "$psmdcp" ]; then
+              mv "$psmdcp" "$d/package/services/metadata/core-properties/normalized.psmdcp"
+            fi
+            # Normalize the Target+Id GUIDs in _rels/.rels to a fixed token.
+            sed -i -E \
+              -e 's|core-properties/[0-9a-f]{32}\.psmdcp|core-properties/normalized.psmdcp|g' \
+              -e 's| Id="R[0-9A-F]{16}"| Id="NORMALIZED"|g' \
+              "$d/_rels/.rels"
+          done
+
+          diff -r unpack1 unpack2 \
+            && echo "OK: pack output is byte-identical (post-psmdcp-normalization)." \
+            || (echo "::error::Pack output is NOT byte-identical. See diff above."; exit 1)

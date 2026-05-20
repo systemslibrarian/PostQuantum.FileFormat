@@ -1,0 +1,84 @@
+name: Python binding
+
+on:
+  push:
+    paths:
+      - "bindings/python/**"
+      - "impl/rust/pqf-reader/**"
+      - ".github/workflows/python-binding.yml"
+  pull_request:
+    paths:
+      - "bindings/python/**"
+      - "impl/rust/pqf-reader/**"
+      - ".github/workflows/python-binding.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build + smoke (${{ matrix.os }} / py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.9", "3.12"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            bindings/python/target
+            impl/rust/pqf-reader/target
+          key: ${{ runner.os }}-py${{ matrix.python }}-cargo-${{ hashFiles('bindings/python/Cargo.toml', 'impl/rust/pqf-reader/Cargo.toml') }}
+
+      - name: Install maturin
+        run: pip install --upgrade pip maturin
+
+      - name: Build + install the binding into the venv
+        working-directory: bindings/python
+        run: maturin develop --release
+
+      - name: Smoke test (import + parse a vector)
+        working-directory: bindings/python
+        shell: bash
+        run: |
+          python - <<'PY'
+          import pqf, json, pathlib
+          repo = pathlib.Path("../..").resolve()
+          # Pick the first positive test vector.
+          path = repo / "test-vectors" / "v1" / "cases" / "TV-001.pqf"
+          blob = path.read_bytes()
+          header = pqf.parse_header(blob)
+          assert header["alg"]["kem"] == "x25519+ml-kem-1024", header
+          assert header["alg"]["combiner"] == "pqf1-concat-extract-v1"
+          assert len(header["recipients"]) >= 1
+          print("OK: pqf.parse_header round-trips on TV-001")
+
+          # Now decrypt with the manifest identity.
+          manifest = json.loads((repo / "test-vectors" / "v1" / "manifest.json").read_text())
+          ident_a = manifest["Identities"][0]
+          identity = pqf.Identity.from_manifest(
+              ident_a["Id"],
+              ident_a["PublicKey"],
+              ident_a["X25519PrivateKey"],
+              ident_a["MlKem1024PrivateKey"],
+          )
+          plaintext = pqf.decrypt(blob, identity)
+          assert len(plaintext) > 0
+          print(f"OK: pqf.decrypt produced {len(plaintext)} bytes")
+          PY

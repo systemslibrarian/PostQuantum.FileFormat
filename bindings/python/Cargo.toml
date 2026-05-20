@@ -1,0 +1,17 @@
+[package]
+name = "pqf-python"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Python bindings for the PQF (PostQuantum.FileFormat) Rust reader."
+repository = "https://github.com/systemslibrarian/PostQuantum.FileFormat"
+publish = false
+
+[lib]
+name = "pqf"
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[dependencies]
+pyo3 = { version = "0.22", features = ["extension-module", "abi3-py38"] }
+pqf-reader = { path = "../../impl/rust/pqf-reader" }

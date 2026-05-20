@@ -1,0 +1,140 @@
+/*
+ * pqf-combiner.spthy — Symbolic model of the PQF hybrid KEM combiner.
+ *
+ * Captures the abstract structure of `pqf1-concat-extract-v1` (PQF spec
+ * §2.4): sender performs an ephemeral X25519 agreement and an ML-KEM
+ * encapsulation against the recipient's long-term public key, then
+ * HKDF-extracts a KEK from the concatenation of the two shared secrets,
+ * and AES-GCM-wraps a freshly-sampled DEK under that KEK.
+ *
+ * The property we want to prove is the "hybrid assumption": the DEK
+ * stays secret as long as the adversary lacks BOTH the X25519 long-term
+ * key AND the ability to break ML-KEM. Each of those alone is
+ * insufficient.
+ *
+ * This file is a STARTING POINT for symbolic verification, not a
+ * completed proof. See README.md.
+ */
+
+theory PQFCombiner
+begin
+
+builtins:
+    hashing,
+    diffie-hellman,
+    symmetric-encryption
+
+/*
+ * ML-KEM is modeled abstractly as an asymmetric primitive whose
+ * encapsulation produces (ciphertext, shared-secret) and whose
+ * decapsulation recovers the shared-secret given the right secret key.
+ */
+functions:
+    kemEncap/2,         // kemEncap(pk, randomness) -> <ct, ss>
+    kemCtOf/1,          //   first projection
+    kemSsOf/1,          //   second projection
+    kemDecap/2,         // kemDecap(sk, ct) -> ss
+    pkOf/1,             // pkOf(sk) = derived public key
+    hkdfExtract/2,      // hkdfExtract(salt, ikm) = key
+    aeadWrap/3,         // aeadWrap(key, nonce, msg) = ct (authenticated)
+    aeadUnwrap/3        // aeadUnwrap(key, nonce, ct) = msg
+
+equations:
+    kemCtOf(kemEncap(pkOf(sk), r)) = encapCt(pkOf(sk), r),
+    kemSsOf(kemEncap(pkOf(sk), r)) = encapSs(pkOf(sk), r),
+    kemDecap(sk, encapCt(pkOf(sk), r)) = encapSs(pkOf(sk), r),
+    aeadUnwrap(k, n, aeadWrap(k, n, m)) = m
+
+/* --- recipient long-term keys ------------------------------------------- */
+
+rule RecipientGen:
+    [ Fr(~skX), Fr(~skKem) ]
+  --[ Recipient($R, ~skX, ~skKem) ]->
+    [ !RecipientLtk($R, ~skX, ~skKem),
+      Out(<'g'^~skX, pkOf(~skKem)>) ]
+
+/*
+ * The adversary may compromise EITHER key independently. The hybrid
+ * assumption says compromising one half is not enough.
+ */
+rule RevealX25519:
+    [ !RecipientLtk($R, skX, skKem) ]
+  --[ RevealX($R) ]->
+    [ Out(skX) ]
+
+rule RevealMlKem:
+    [ !RecipientLtk($R, skX, skKem) ]
+  --[ RevealKem($R) ]->
+    [ Out(skKem) ]
+
+/* --- sender encrypts to a recipient ------------------------------------- */
+
+rule SenderEncap:
+    let
+        pkR_X = 'g'^skX
+        pkR_K = pkOf(skKem)
+        ssX   = pkR_X^~e            // X25519 shared secret
+        ssKem = kemSsOf(kemEncap(pkR_K, ~r))
+        kemCt = kemCtOf(kemEncap(pkR_K, ~r))
+        kek   = hkdfExtract(<'PQF1-combiner-v1', $R>, <ssX, ssKem>)
+        wrap  = aeadWrap(kek, ~nonce, ~dek)
+    in
+    [ Fr(~e), Fr(~r), Fr(~dek), Fr(~nonce),
+      !RecipientLtk($R, skX, skKem) ]
+  --[ Encapsulated($R, ~dek),
+      DekSampled(~dek) ]->
+    [ Out(< 'g'^~e, kemCt, ~nonce, wrap >) ]
+
+/* --- recipient decrypts ------------------------------------------------- */
+
+rule RecipientDecap:
+    let
+        ssX   = epkX^skX
+        ssKem = kemDecap(skKem, kemCt)
+        kek   = hkdfExtract(<'PQF1-combiner-v1', $R>, <ssX, ssKem>)
+        dek   = aeadUnwrap(kek, nonce, wrap)
+    in
+    [ !RecipientLtk($R, skX, skKem),
+      In(< epkX, kemCt, nonce, wrap >) ]
+  --[ Decapsulated($R, dek) ]->
+    [ ]
+
+/* --- the central lemma -------------------------------------------------- *
+ *
+ * Claim: the adversary cannot learn a DEK unless it has compromised
+ * BOTH the recipient's X25519 long-term key AND the recipient's ML-KEM
+ * long-term key.
+ *
+ * This lemma is STATED but not yet proved. Discharging it requires:
+ *   (a) Tamarin's heuristic finds a proof, or
+ *   (b) the model is refined to give Tamarin enough structure to
+ *       induct over the message reduction.
+ *
+ * If Tamarin reports a counterexample on this lemma, that is a
+ * potentially serious flaw in the combiner construction and should be
+ * reported via the SECURITY.md private channel.
+ */
+lemma dek_secrecy_under_hybrid_assumption:
+    "All dek #i.
+        DekSampled(dek) @ #i & K(dek) @ #i
+        ==>
+        Ex R #j #k.
+            RevealX(R)   @ #j &
+            RevealKem(R) @ #k &
+            Encapsulated(R, dek) @ #i"
+
+/*
+ * Sanity lemma: the protocol is executable — there exists a trace
+ * where a sender and recipient successfully agree on a DEK without
+ * any reveal. If this lemma fails to find a trace, the model is
+ * broken (not the protocol).
+ */
+lemma protocol_is_executable:
+    exists-trace
+    "Ex R dek #i #j.
+        Encapsulated(R, dek) @ #i &
+        Decapsulated(R, dek) @ #j &
+        not (Ex #k. RevealX(R)   @ #k) &
+        not (Ex #k. RevealKem(R) @ #k)"
+
+end

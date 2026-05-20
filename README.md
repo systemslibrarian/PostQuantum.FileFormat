@@ -8,6 +8,7 @@ PQF is a specification and reference implementation for hybrid post-quantum encr
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Spec: draft v0.3.1](https://img.shields.io/badge/spec-draft%20v0.3.1-orange.svg)](spec/PQF-SPEC-v1.md)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/systemslibrarian/PostQuantum.FileFormat/badge)](https://securityscorecards.dev/viewer/?uri=github.com/systemslibrarian/PostQuantum.FileFormat)
+[![codecov](https://codecov.io/gh/systemslibrarian/PostQuantum.FileFormat/branch/main/graph/badge.svg)](https://codecov.io/gh/systemslibrarian/PostQuantum.FileFormat)
 [![REUSE compliant](https://img.shields.io/badge/REUSE-compliant-success.svg)](LICENSE)
 
 ## Quick start

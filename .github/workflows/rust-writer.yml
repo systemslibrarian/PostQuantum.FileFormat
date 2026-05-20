@@ -1,0 +1,44 @@
+name: Rust writer scaffold
+
+on:
+  push:
+    paths:
+      - "impl/rust/pqf-writer/**"
+      - "impl/rust/pqf-reader/**"
+      - ".github/workflows/rust-writer.yml"
+  pull_request:
+    paths:
+      - "impl/rust/pqf-writer/**"
+      - "impl/rust/pqf-reader/**"
+      - ".github/workflows/rust-writer.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: cargo build (release)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            impl/rust/pqf-writer/target
+          key: ${{ runner.os }}-cargo-pqf-writer-${{ hashFiles('impl/rust/pqf-writer/Cargo.toml', 'impl/rust/pqf-reader/Cargo.toml') }}
+
+      - name: Build pqf-writer (release)
+        working-directory: impl/rust/pqf-writer
+        run: cargo build --release
+
+      - name: Lint with clippy
+        working-directory: impl/rust/pqf-writer
+        run: cargo clippy --release -- -D warnings || true

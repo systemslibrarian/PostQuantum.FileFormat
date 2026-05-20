@@ -1,0 +1,22 @@
+[package]
+name = "pqf-wasm"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "WebAssembly bindings for the PQF Rust reader."
+repository = "https://github.com/systemslibrarian/PostQuantum.FileFormat"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
+
+[dependencies]
+wasm-bindgen = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde-wasm-bindgen = "0.6"
+pqf-reader = { path = "../../impl/rust/pqf-reader" }
+console_error_panic_hook = { version = "0.1", optional = true }
+
+[features]
+default = ["console_error_panic_hook"]

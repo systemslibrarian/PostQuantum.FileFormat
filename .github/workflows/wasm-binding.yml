@@ -1,0 +1,54 @@
+name: WASM binding
+
+on:
+  push:
+    paths:
+      - "bindings/wasm/**"
+      - "impl/rust/pqf-reader/**"
+      - ".github/workflows/wasm-binding.yml"
+  pull_request:
+    paths:
+      - "bindings/wasm/**"
+      - "impl/rust/pqf-reader/**"
+      - ".github/workflows/wasm-binding.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: wasm-pack build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust (stable) + wasm32 target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            bindings/wasm/target
+            impl/rust/pqf-reader/target
+          key: ${{ runner.os }}-cargo-wasm-${{ hashFiles('bindings/wasm/Cargo.toml', 'impl/rust/pqf-reader/Cargo.toml') }}
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack --locked
+
+      - name: Build WASM bundle (release, --target web)
+        working-directory: bindings/wasm
+        run: wasm-pack build --release --target web
+
+      - name: Verify pkg/ output
+        working-directory: bindings/wasm
+        run: |
+          test -f pkg/pqf_wasm.js
+          test -f pkg/pqf_wasm_bg.wasm
+          echo "Bundle size:"
+          du -k pkg/pqf_wasm_bg.wasm

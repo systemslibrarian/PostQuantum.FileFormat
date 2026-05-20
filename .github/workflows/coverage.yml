@@ -1,0 +1,56 @@
+name: Coverage
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    name: dotnet test + coverlet → Codecov
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore PostQuantum.FileFormat.sln
+
+      - name: Build
+        run: dotnet build PostQuantum.FileFormat.sln --no-restore -c Release
+
+      - name: Test with coverage (Cobertura XML)
+        # coverlet.collector is referenced by both test projects so the
+        # `--collect:"XPlat Code Coverage"` switch produces a per-project
+        # coverage.cobertura.xml under TestResults.
+        run: |
+          dotnet test PostQuantum.FileFormat.sln --no-build -c Release \
+            --collect:"XPlat Code Coverage" \
+            --results-directory coverage-out
+
+      - name: Locate coverage files
+        id: locate
+        run: |
+          set -euo pipefail
+          files=$(find coverage-out -name 'coverage.cobertura.xml' | tr '\n' ',' | sed 's/,$//')
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+          echo "coverage files: $files"
+
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ${{ steps.locate.outputs.files }}
+          fail_ci_if_error: false
+          verbose: true
+        env:
+          # CODECOV_TOKEN is required for private repos; for public repos
+          # tokenless upload works. Set the secret if you switch to private.
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

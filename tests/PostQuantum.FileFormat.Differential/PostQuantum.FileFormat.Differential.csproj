@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Differential test driver: generates a batch of random-but-valid PQF
+    containers via the .NET writer, dumps them to a directory alongside a
+    manifest, and asserts that both readers (the .NET reader and the Rust
+    reader) accept each container and recover the same plaintext.
+
+    Lives separately from PostQuantum.FileFormat.TestVectors because that
+    project produces the canonical, byte-deterministic conformance set
+    (committed to test-vectors/v1/cases/) and must not be modified for
+    randomized testing. This project produces ephemeral vectors used by
+    the differential CI job.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>PostQuantum.FileFormat.Differential</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PostQuantum.FileFormat\PostQuantum.FileFormat.csproj" />
+  </ItemGroup>
+
+</Project>

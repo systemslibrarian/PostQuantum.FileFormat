@@ -1,0 +1,40 @@
+<Project>
+
+  <!--
+    Reproducible-build defaults applied to every project in the solution.
+
+    The set below produces byte-identical pack output when the source tree
+    and toolchain version match: deterministic compile, embedded source
+    paths normalized via PathMap, SourceLink metadata, and CI-build hints
+    that suppress timestamp embedding.
+
+    Source Link (via Microsoft.SourceLink.GitHub) lets debuggers and
+    decompilers fetch the exact source files corresponding to the
+    shipped IL, which complements the SLSA provenance attached to
+    release artifacts.
+
+    SuppressNETCoreSdkPreviewMessage is set so a preview SDK doesn't
+    inject a warning that affects determinism diagnostics.
+  -->
+
+  <PropertyGroup>
+    <!-- Deterministic compile + embedded source path normalization. -->
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <PathMap>$(MSBuildProjectDirectory)=/_/$(MSBuildProjectName)</PathMap>
+
+    <!-- Source Link defaults; the package reference is added below. -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Source Link: embed git commit + repo URL into the assembly metadata. -->
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+  </ItemGroup>
+
+</Project>

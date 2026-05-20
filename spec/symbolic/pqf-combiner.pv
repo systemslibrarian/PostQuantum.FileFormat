@@ -1,0 +1,79 @@
+(*
+ * pqf-combiner.pv — ProVerif applied-pi-calculus model of the PQF
+ * hybrid KEM combiner. Cross-checks the Tamarin model in pqf-combiner.spthy.
+ *
+ * Same primitives, same property, different proof engine. ProVerif's
+ * Horn-clause backend often discharges these properties automatically
+ * when Tamarin needs interactive help, so it is useful as a second
+ * source of confidence.
+ *
+ * Status: skeleton (see README.md).
+ *)
+
+(* Public channel — Dolev-Yao adversary controls it. *)
+free c: channel.
+
+(* Long-term recipient secret-keys (split into two halves). *)
+free skX:    bitstring [private].
+free skKem:  bitstring [private].
+
+(* DEK we want to keep secret. *)
+free dek: bitstring [private].
+
+(* X25519: classical Diffie-Hellman primitives. *)
+type point.
+const G: point.
+fun dh(point, bitstring): point.
+equation forall a:bitstring, b:bitstring; dh(dh(G, a), b) = dh(dh(G, b), a).
+
+(* ML-KEM modeled abstractly. *)
+type kemPk.
+type kemCt.
+fun kemPkOf(bitstring): kemPk.
+fun kemEncap(kemPk, bitstring): bitstring.   (* shared secret *)
+fun kemCtOf(kemPk, bitstring): kemCt.
+fun kemDecap(bitstring, kemCt): bitstring.
+equation forall sk:bitstring, r:bitstring;
+    kemDecap(sk, kemCtOf(kemPkOf(sk), r)) = kemEncap(kemPkOf(sk), r).
+
+(* HKDF and AEAD. *)
+fun hkdfExtract(bitstring, bitstring): bitstring.
+fun aeadWrap(bitstring, bitstring, bitstring): bitstring.
+reduc forall k:bitstring, n:bitstring, m:bitstring;
+    aeadUnwrap(k, n, aeadWrap(k, n, m)) = m.
+
+(* Allow the adversary to reveal at most one half. *)
+event RevealX().
+event RevealKem().
+event LeakedDek(bitstring).
+
+(* The hybrid-assumption query: DEK leaks ==> BOTH halves revealed. *)
+query d: bitstring;
+    event(LeakedDek(d)) ==> (event(RevealX()) && event(RevealKem())).
+
+let recipient =
+    in(c, =()) ;
+    out(c, (dh(G, skX), kemPkOf(skKem))) .
+
+let sender(R: bitstring) =
+    new e: bitstring;
+    new r: bitstring;
+    new nonce: bitstring;
+    let pkX = dh(G, skX) in
+    let pkK = kemPkOf(skKem) in
+    let ssX = dh(pkX, e) in
+    let ssKem = kemEncap(pkK, r) in
+    let kek = hkdfExtract((b"PQF1-combiner-v1", R), (ssX, ssKem)) in
+    let ct  = aeadWrap(kek, nonce, dek) in
+    out(c, (dh(G, e), kemCtOf(pkK, r), nonce, ct)) .
+
+(* Adversary may choose to reveal one half (or neither) but never both
+   under the secure model. *)
+let revealX   = event RevealX();   out(c, skX).
+let revealKem = event RevealKem(); out(c, skKem).
+
+process
+    ( recipient
+    | sender(b"recipient")
+    | revealX
+    | revealKem )

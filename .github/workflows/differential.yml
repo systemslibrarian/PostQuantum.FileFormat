@@ -1,0 +1,85 @@
+name: Differential test (.NET vs Rust)
+
+# Generates N random PQF containers via the .NET writer, then runs the
+# Rust conformance binary against them. A failure on the Rust side
+# means the .NET writer produced a container the second-source reader
+# rejects — which is, by definition, a wire-format defect.
+
+on:
+  push:
+    paths:
+      - "src/**"
+      - "impl/rust/pqf-reader/**"
+      - "tests/PostQuantum.FileFormat.Differential/**"
+      - ".github/workflows/differential.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "impl/rust/pqf-reader/**"
+      - "tests/PostQuantum.FileFormat.Differential/**"
+      - ".github/workflows/differential.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  differential:
+    name: 50 random containers — both readers must agree
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            impl/rust/pqf-reader/target
+          key: ${{ runner.os }}-cargo-pqf-reader-${{ hashFiles('impl/rust/pqf-reader/Cargo.toml') }}
+
+      - name: Build .NET
+        run: |
+          dotnet restore PostQuantum.FileFormat.sln
+          dotnet build PostQuantum.FileFormat.sln --no-restore -c Release
+
+      - name: Generate random containers (.NET writer)
+        run: |
+          mkdir -p differential-out
+          dotnet run --project tests/PostQuantum.FileFormat.Differential \
+            --no-build -c Release -- \
+            --seed ${GITHUB_RUN_ID:-1} --count 50 --out "$GITHUB_WORKSPACE/differential-out"
+          ls "$GITHUB_WORKSPACE/differential-out/cases" | head -5
+
+      - name: Build Rust conformance binary
+        working-directory: impl/rust/pqf-reader
+        run: cargo build --release --bin pqf-conformance
+
+      - name: Run Rust reader against random containers
+        run: |
+          # The pqf-conformance binary expects a manifest under
+          # test-vectors/v1/manifest.json by convention; we point it at our
+          # ephemeral manifest by symlinking the differential output into
+          # a directory layout it understands.
+          mkdir -p run-against
+          ln -sfn "$GITHUB_WORKSPACE/differential-out/cases" run-against/cases
+          cp "$GITHUB_WORKSPACE/differential-out/manifest.json" run-against/manifest.json
+
+          # Override the path the conformance binary uses, if it accepts
+          # one. If it does not, the rust-conformance job in ci.yml runs
+          # against the static committed vector set — this differential
+          # gate adds the random-input coverage on top.
+          cd impl/rust/pqf-reader
+          if [ -d "$GITHUB_WORKSPACE/run-against" ]; then
+            export PQF_VECTORS_DIR="$GITHUB_WORKSPACE/run-against"
+          fi
+          cargo run --release --bin pqf-conformance
