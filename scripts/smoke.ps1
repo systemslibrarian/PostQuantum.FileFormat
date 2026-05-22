@@ -36,6 +36,9 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "build failed" }
 
     Push-Location $WorkDir
+    # PowerShell's Push-Location does not update .NET's Environment.CurrentDirectory,
+    # so [System.IO.File]::* APIs below would otherwise write to the wrong directory.
+    [System.Environment]::CurrentDirectory = (Get-Location).Path
 
     Write-Host "==> 1/7 Generate encryption keypair"
     Invoke-Pqf keygen --type encrypt --public-out alice.pub.pem --private-out alice.key.json
@@ -45,7 +48,8 @@ try {
 
     Write-Host "==> 3/7 Create sample plaintext"
     $bytes = New-Object byte[] 200000
-    [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }
     [System.IO.File]::WriteAllBytes("sample.bin", $bytes)
     $shaIn = (Get-FileHash sample.bin -Algorithm SHA256).Hash
     Write-Host "    sample.bin sha256=$shaIn"
@@ -94,5 +98,6 @@ try {
 }
 finally {
     Pop-Location -ErrorAction SilentlyContinue
+    [System.Environment]::CurrentDirectory = (Get-Location).Path
     Remove-Item -Recurse -Force $WorkDir -ErrorAction SilentlyContinue
 }
