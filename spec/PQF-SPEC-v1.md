@@ -1,7 +1,7 @@
 # PQF File Format — Specification, Version 1
 
 **Status:** DRAFT / EXPERIMENTAL — do not use to protect irreplaceable data.
-**Document version:** 0.3.2 (2026-05-29)
+**Document version:** 0.4 (2026-05-29)
 **Editor:** Paul Clark <paul@systemslibrarian.dev>
 **License:** MIT
 
@@ -11,14 +11,22 @@
 
 ## Change log
 
-**0.3.2 (2026-05-29)** — Pre-review hardening pass. Clarifications only, no
-wire-format, parameter, or normative-MUST changes:
+**0.4 (2026-05-29)** — Reviewer-readiness milestone (pre-review hardening pass,
+findings F1–F9). No wire-format, parameter, or normative-MUST changes; the
+version bump marks the review milestone, not a normative revision. Spec-document
+change in this milestone:
 
 - §2: Added an explicit **parameter-set conformance** paragraph stating that
   ML-KEM-768 / ML-DSA-65 (Category 3) are non-conformant for PQF v1 and that a
   v1 reader MUST refuse any other parameter set. This sharpens — it does not
   add to — the existing "readers that do not support all primitives MUST
   refuse" requirement.
+
+  Companion changes shipped in the same milestone live outside this document:
+  the X-Wing/CFRG combiner deviations and v1.1 parity roadmap in
+  PQF-DESIGN-RATIONALE-v1.md §2.5/§11.9, the signed-vs-unsigned truncation
+  rows in docs/THREAT-MODEL.md, docs/SECURITY-OVERVIEW.md, and conformance
+  vectors TV-NEG-023…033 (47 total).
 
 **0.3.1 (2026-04-21)** — Polishing pass following ChatGPT v0.3.0 review. Six
 tightening fixes, no design changes:
