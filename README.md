@@ -255,7 +255,7 @@ every N — that's the design working.
 |---|---|
 | Specification | Draft v0.4 |
 | Reference implementation (.NET) | Phases 1–5 complete on `main`, CI green |
-| Test vectors | v1 set (positive + negative) committed; reproducibility gated on the unsigned subset |
+| Test vectors | v1 set (positive + negative) committed; full-set byte-reproducibility gated in CI (signed vectors via FIPS 204 deterministic signing) |
 | CLI (`pqf`) | `keygen`, `encrypt`, `decrypt`, `inspect`, `fingerprint`; published as `0.4.0-preview.2` on NuGet.org |
 | Second-language implementation | Rust reader in `impl/rust/pqf-reader` + cross-impl conformance gate in CI |
 | Parser fuzz harness | `tests/PostQuantum.FileFormat.Fuzz` (CBOR / header / streaming targets); 60-second CI smoke pass |
