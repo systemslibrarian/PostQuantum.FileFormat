@@ -97,6 +97,7 @@ To clean up: `cd ~ && rm -rf /tmp/pqf-demo`.
 - **Two decryption modes:**
   - *Authenticated Mode* (default): verifies the file signature (when present) and footer before releasing any plaintext to the caller.
   - *Streaming Mode*: releases verified chunks as they are read, with explicit, non-silent post-hoc signaling if the footer or file signature fails to verify. Streaming failures cannot be silently ignored by the caller.
+    **Do not trust streamed plaintext until final verification reports success.**
 - **Fail-closed validation:** unknown fields, length mismatches, reserved bits, truncation, trailing bytes, and any algorithm deviation are refused. There are no permissive paths.
 
 ## 60-second example
@@ -181,6 +182,24 @@ CODE_OF_CONDUCT.md               Contributor Covenant 2.1
 - **MUST-level enforcement.** Every `MUST` in the spec corresponds to a refusal path in the reader, exercised by negative test vectors and refusal-test suites.
 - **No silent recovery.** There are no "best effort" paths. Any deviation from the spec terminates processing with an explicit, typed error.
 - **Conformance is testable.** [SPEC-CHECKLIST.md](SPEC-CHECKLIST.md) enumerates the normative items. The implementation is gated against committed test vectors under [tests/PostQuantum.FileFormat.TestVectors](tests/PostQuantum.FileFormat.TestVectors).
+
+## Conformance
+
+Run this command from the repository root to validate a reader implementation against the committed v1 vector set:
+
+```bash
+cargo run --release --bin pqf-conformance --manifest-path impl/rust/pqf-reader/Cargo.toml -- test-vectors/v1
+```
+
+Prerequisites:
+
+- Rust toolchain (`cargo`) installed.
+- Repository checked out with `test-vectors/v1` present.
+
+Pass/fail behavior:
+
+- Pass: command exits `0` and reports all vectors as pass.
+- Fail: command exits non-zero and prints each failing vector ID/reason.
 
 ## Performance
 

@@ -164,10 +164,9 @@ combined_ss = HKDF-Extract(
 )
 ```
 
-This follows the pattern recommended in
-`draft-ounsworth-cfrg-kem-combiners` and aligned with
-`draft-ietf-pquip-hybrid-signature-spectrums`. Several alternatives were
-considered:
+This follows the **concatenate-then-extract** pattern of
+`draft-ounsworth-cfrg-kem-combiners`, with the binding deviations noted
+below. Several alternatives were considered:
 
 - **XOR the secrets:** Too weak; cancels under certain conditions.
 - **Hash the concatenation directly:** Works, but HKDF's Extract-then-Expand
@@ -180,6 +179,40 @@ separation. Even if X25519 or ML-KEM outputs were somehow reused across
 files or recipients (which would itself indicate a primitive break), the
 combined secrets diverge. This is defense-in-depth at a place where the
 cost is zero.
+
+#### How this deviates from the IETF/X-Wing combiners
+
+PQF's combiner is **not** wire- or transcript-equivalent to
+`draft-ounsworth-cfrg-kem-combiners` or to the X-Wing KEM, and reviewers
+should not assume the security proofs of those constructions transfer
+unchanged. The specific differences are:
+
+1. **No ciphertext/public-key binding in the KDF input.** X-Wing and the
+   "KitchenSink"-style profiles of the CFRG combiner feed the ML-KEM
+   ciphertext (and in X-Wing, a fixed label plus the X25519 ephemeral and
+   ML-KEM public-key material) into the hash transcript, which is what
+   gives those constructions their ciphertext-binding / MAL-BIND
+   properties. PQF feeds **only** the two raw shared secrets
+   (`ss_x25519 || ss_mlkem`) as IKM. The ML-KEM ciphertext and the X25519
+   ephemeral public key are *not* part of the combiner transcript.
+2. **Binding is relocated, not omitted.** PQF instead binds context
+   through (a) the `file_id`-and-`recipient_index` salt at Extract time,
+   and (b) the AEAD AAD (`file_id || chunk_index || is_final`) at
+   encryption time. The recipient block as a whole — including the
+   ML-KEM ciphertext — is covered by the header integrity check
+   (deterministic-CBOR re-encoding, and the file signature when signed).
+   So an attacker cannot swap a recipient's ciphertext undetected on a
+   signed file, but the *combiner output itself* is not a commitment to
+   the ciphertext the way X-Wing's is.
+3. **Consequence.** PQF does not claim the formal MAL-BIND-K-CT /
+   LEAK-BIND-K-PK binding notions that X-Wing targets. It claims IND-CCA
+   confidentiality of the DEK under the standard hybrid-KEM assumption
+   (security holds if *either* X25519 *or* ML-KEM is unbroken) plus
+   integrity of the recipient block via the header check. Achieving
+   X-Wing parity (folding the ML-KEM ciphertext and public-key material
+   into the combiner transcript) is tracked as a v1.1 roadmap item; see
+      §11.9.
+specified above*, not the X-Wing variant.
 
 ---
 
@@ -628,6 +661,24 @@ Places where the author is uncertain and would value external input:
    conforming implementations to document the side-channel posture of
    their dependencies, even though it cannot meaningfully require a
    particular posture?
+
+9. **X-Wing / CFRG-combiner parity for ciphertext binding (v1.1
+   roadmap).** As detailed in §2.5, PQF's combiner feeds only the two raw
+   shared secrets as IKM and relocates context binding to the salt
+   (`file_id || recipient_index`) and the AEAD AAD, rather than folding
+   the ML-KEM ciphertext and the X25519/ML-KEM public-key material into
+   the KDF transcript the way X-Wing and the binding profiles of
+   `draft-ounsworth-cfrg-kem-combiners` do. As a result PQF does not
+   inherit the formal MAL-BIND-K-CT / LEAK-BIND-K-PK binding notions of
+   those constructions; it relies on the header integrity check to make
+   recipient-block substitution detectable on signed files. A v1.1
+   profile could adopt an X-Wing-equivalent transcript
+   (`label || ss_mlkem || ss_x25519 || ct_mlkem || epk_x25519 ||
+   pk_mlkem`) to obtain ciphertext binding by construction. This is a
+   wire-format change (combiner input changes; key formats and ciphertext
+   layout do not). The open question is whether the added binding is
+   worth diverging from the deliberately minimal v1 combiner, and whether
+   to track upstream X-Wing standardization before committing.
 
 ---
 

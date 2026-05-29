@@ -338,6 +338,105 @@
       "Reason": "FooterPlaintextBytesMismatch",
       "StreamingPostHocFailure": true,
       "PlaintextSha256": null
+    },
+    {
+      "Id": "TV-NEG-023",
+      "File": "cases/TV-NEG-023.pqf",
+      "Expect": "failure",
+      "Identity": "id-a",
+      "Reason": "UnknownHeaderField",
+      "StreamingPostHocFailure": false,
+      "PlaintextSha256": null
+    },
+    {
+      "Id": "TV-NEG-024",
+      "File": "cases/TV-NEG-024.pqf",
+      "Expect": "failure",
+      "Identity": "id-a",
+      "Reason": "UnknownHeaderField",
+      "StreamingPostHocFailure": false,
+      "PlaintextSha256": null
+    },
+    {
+      "Id": "TV-NEG-025",
+      "File": "cases/TV-NEG-025.pqf",
+      "Expect": "failure",
+      "Identity": "id-a",
+      "Reason": "UnknownHeaderField",
+      "StreamingPostHocFailure": false,
+      "PlaintextSha256": null
+    },
+    {
+      "Id": "TV-NEG-026",
+      "File": "cases/TV-NEG-026.pqf",
+      "Expect": "failure",
+      "Identity": "id-a",
+      "Reason": "UnknownHeaderField",
+      "StreamingPostHocFailure": false,
+      "PlaintextSha256": null
+    },
+    {
+      "Id": "TV-NEG-027",
+      "File": "cases/TV-NEG-027.pqf",
+      "Expect": "failure",
+      "Identity": "id-a",
+      "Reason": "AlgorithmIdentifierMismatch",
+      "StreamingPostHocFailure": false,
+      "PlaintextSha256": null
+    },
+    {
+      "Id": "TV-NEG-028",
+      "File": "cases/TV-NEG-028.pqf",
+      "Expect": "failure",
+      "Identity": "id-a",
+      "Reason": "MissingRequiredField",
+      "StreamingPostHocFailure": false,
+      "PlaintextSha256": null
+    },
+    {
+      "Id": "TV-NEG-029",
+      "File": "cases/TV-NEG-029.pqf",
+      "Expect": "failure",
+      "Identity": "id-a",
+      "Reason": "RecipientsEmpty",
+      "StreamingPostHocFailure": false,
+      "PlaintextSha256": null
+    },
+    {
+      "Id": "TV-NEG-030",
+      "File": "cases/TV-NEG-030.pqf",
+      "Expect": "failure",
+      "Identity": "id-a",
+      "Reason": "CreatedTimestampInvalid",
+      "StreamingPostHocFailure": false,
+      "PlaintextSha256": null
+    },
+    {
+      "Id": "TV-NEG-031",
+      "File": "cases/TV-NEG-031.pqf",
+      "Expect": "failure",
+      "Identity": "id-a",
+      "Reason": "ChunkSizeInvalid",
+      "StreamingPostHocFailure": false,
+      "PlaintextSha256": null
+    },
+    {
+      "Id": "TV-NEG-032",
+      "File": "cases/TV-NEG-032.pqf",
+      "Expect": "failure",
+      "Identity": "id-a",
+      "Reason": "BinaryFieldLengthMismatch",
+      "StreamingPostHocFailure": false,
+      "PlaintextSha256": null
+    },
+    {
+      "Id": "TV-NEG-033",
+      "File": "cases/TV-NEG-033.pqf",
+      "Expect": "failure",
+      "Identity": "id-a",
+      "Reason": "DuplicateCborKey",
+      "StreamingPostHocFailure": false,
+      "PlaintextSha256": null
     }
   ]
 }

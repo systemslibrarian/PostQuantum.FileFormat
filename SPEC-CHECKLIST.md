@@ -1,6 +1,6 @@
 # PQF Implementation Checklist
 
-**Derived from:** `spec/PQF-SPEC-v1.md` v0.3.1
+**Derived from:** `spec/PQF-SPEC-v1.md` v0.3.2
 **Purpose:** Exhaustive list of normative requirements, organized by
 implementation surface. Every item traces back to a specific spec section.
 **Status:** Companion document. Not normative — the spec is authoritative.
@@ -30,7 +30,7 @@ review) which are tracked outside this implementation checklist.
 - 🟡 SHOULD / SHOULD NOT — strong guidance, deviate only with documented reason
 - ⚪ MAY — optional feature, conforming to implement or not
 
-Total normative statements in spec v0.3.1: 66 MUST/SHOULD items.
+Total normative statements in spec v0.3.2: 66 MUST/SHOULD items.
 
 ---
 
@@ -274,27 +274,48 @@ Readers MUST refuse under all of the following. This section duplicates items
 from earlier sections intentionally — it is the master rejection list used for
 testing.
 
-- [x] 🔴 Magic mismatch
-- [x] 🔴 Version mismatch
-- [x] 🔴 Header length > 1 MiB
-- [x] 🔴 Non-deterministic CBOR encoding
-- [x] 🔴 Unknown field at any header level
-- [x] 🔴 Missing required field
-- [x] 🔴 Algorithm identifier mismatch
-- [x] 🔴 `chunk_size` invalid
-- [x] 🔴 `created` not in RFC 3339 UTC "Z" form
-- [x] 🔴 Empty `recipients` array
-- [x] 🔴 Binary field length mismatch
-- [x] 🔴 Identity matches no recipient block
-- [x] 🔴 Signature verification failure (either hybrid half)
-- [x] 🔴 AEAD tag failure (wrap, chunk, anywhere)
-- [x] 🔴 Footer chunk count mismatch
-- [x] 🔴 Footer plaintext bytes mismatch
-- [x] 🔴 Footer magic missing or incorrect
-- [x] 🔴 Reserved chunk flag bits set
-- [x] 🔴 Chunk length exceeds remaining file bounds
-- [x] 🔴 Truncation (EOF before expected end)
-- [x] 🔴 Trailing data after expected EOF
+Every refusal class below is covered by **two** test surfaces:
+
+1. An **in-tree** .NET refusal test (`HeaderSchema_RefusalTests`,
+   `HeaderParser_RefusalTests`, and the file-layout refusal tests under
+   `tests/PostQuantum.FileFormat.Tests/File/`).
+2. A **portable** negative vector under `test-vectors/v1/` (the manifest the
+   Rust second-source reader is gated against), so an independent implementer
+   validating against the published vector set is forced to implement the
+   refusal. The `Portable vector` column lists the `TV-NEG-*` case(s).
+
+> Vectors `TV-NEG-023`…`TV-NEG-033` are produced by
+> `tests/PostQuantum.FileFormat.TestVectors/Program.cs` and are written into
+> `test-vectors/v1/manifest.json` (and `cases/`) when that project is run.
+> They close the header-schema portability gap recorded as finding F4.
+
+| Refusal condition | Spec | Portable vector(s) |
+|---|---|---|
+| Magic mismatch | §3, §6.3 step 2 | `TV-NEG-001` |
+| Version mismatch | §6.3 step 2 | `TV-NEG-002` |
+| Header length > 1 MiB | §3 | `TV-NEG-012`, `TV-NEG-013` |
+| Non-deterministic CBOR encoding | §2.5, §6.3 step 4 | `TV-NEG-010` |
+| Duplicate CBOR map key | §2.5, §6.3 step 4 | `TV-NEG-033` |
+| Unknown field — top level | §4.3 | `TV-NEG-023` |
+| Unknown field — inside `alg` | §4.3 | `TV-NEG-024` |
+| Unknown field — inside `recipients[*]` | §4.3 | `TV-NEG-025` |
+| Unknown field — inside `signer` | §4.3 | `TV-NEG-026` |
+| Missing required field | §6.3 step 4 | `TV-NEG-028` |
+| Algorithm identifier mismatch | §4.2.1 | `TV-NEG-027` |
+| `chunk_size` invalid | §6.3 step 6 | `TV-NEG-031` |
+| `created` not RFC 3339 UTC "Z" form | §8.4 | `TV-NEG-030` |
+| Empty `recipients` array | §8.4 | `TV-NEG-029` |
+| Binary field length mismatch | §4.2.2 | `TV-NEG-032` |
+| Identity matches no recipient block | §6.3 step 8g | `TV-NEG-021` |
+| Signature verification failure (either hybrid half) | §6.3 step 7e | `TV-NEG-009`, `TV-NEG-011` |
+| AEAD tag failure (wrap, chunk, anywhere) | §5.2, §6.3 step 8 | `TV-NEG-008`, `TV-NEG-015`, `TV-NEG-016`, `TV-NEG-017` |
+| Footer chunk count mismatch | §5.5 | `TV-NEG-019` |
+| Footer plaintext bytes mismatch | §5.5 | `TV-NEG-020`, `TV-NEG-022` |
+| Footer magic missing or incorrect | §5.5 | `TV-NEG-005` |
+| Reserved chunk flag bits set | §5.3 | `TV-NEG-006`, `TV-NEG-018` |
+| Chunk length exceeds remaining file bounds | §5.3 | `TV-NEG-007` |
+| Truncation (EOF before expected end) | §6.4 | `TV-NEG-003` |
+| Trailing data after expected EOF | §3, §6.4 | `TV-NEG-004`, `TV-NEG-014` |
 
 ---
 
@@ -363,3 +384,4 @@ Ideally by the end of Phase 5, every box is checked or explicitly marked
 |---|---|---|
 | 0.1.0 | 2026-04-21 | Initial extraction from spec v0.3.1 |
 | 0.2.0 | 2026-04-22 | All implementation items checked after Phase 4/5 hardening; release-management gaps tracked separately in `docs/SPEC-CHECKLIST-REVIEW-2026-04-22.md`. |
+| 0.2.1 | 2026-04-22 | §11 fail-closed list mapped to portable `TV-NEG-*` vectors; header-schema classes (`TV-NEG-023…033`) added to the vector generator to close finding F4. Manifest reflects the new cases after the `PostQuantum.FileFormat.TestVectors` project is re-run. |

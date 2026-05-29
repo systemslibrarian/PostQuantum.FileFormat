@@ -88,6 +88,28 @@ policy. Wire format changes are called out here under "Wire format."
 
 ### Changed
 
+- **Pre-review hardening pass.** Addressed findings F1–F9 from the
+  internal review (`findings.md`). Highlights:
+  - `PqfFileWriter` now fills each non-final chunk with
+    `ReadAtLeastAsync` so short-reading source streams (pipes,
+    sockets) can no longer emit undersized non-final chunks (F5).
+  - `HybridSigner.SignDeterministic` and the deterministic-randomness
+    encrypt path are now `internal` test-only plumbing, with a
+    reflection guard test asserting they are not reachable from the
+    public `EncryptAsync` surface (F9).
+  - Documentation sharpened for the truncation threat model,
+    streaming "do not trust plaintext until final verification"
+    contract, and the combiner's relationship to X-Wing/CFRG (F2, F3,
+    F7, F8). New one-page reviewer front door at
+    `docs/SECURITY-OVERVIEW.md`.
+- **Header-schema conformance vectors** (`TV-NEG-023`…`TV-NEG-033`)
+  added to the vector generator, closing the portable
+  negative-vector gap for unknown-field (×4), algorithm mismatch,
+  missing-field, empty-recipients, malformed `created`, invalid
+  `chunk_size`, binary field length, and duplicate-CBOR-key refusals
+  (F4). `SPEC-CHECKLIST.md` §11 now maps every fail-closed MUST to a
+  portable vector. Manifest artifacts land once the
+  `PostQuantum.FileFormat.TestVectors` project is re-run.
 - **Reproducible test-vector regeneration** now covers the full set
   (signed + unsigned). Previously only the unsigned subset was
   byte-deterministic; widening it required threading FIPS 204
@@ -96,8 +118,10 @@ policy. Wire format changes are called out here under "Wire format."
 
 ### Wire format
 
-- **No breaking changes.** v0.3.1 draft. The header CDDL schema in
-  `spec/pqf-header.cddl` matches the prose in
+- **No breaking changes.** Spec draft bumped 0.3.1 → 0.3.2
+  (clarifications only: explicit parameter-set conformance note in
+  §2). No wire-format, parameter, or normative-MUST change. The
+  header CDDL schema in `spec/pqf-header.cddl` matches the prose in
   `spec/PQF-SPEC-v1.md` §4 byte-for-byte.
 
 ## [0.4.0-preview.2] — 2026-02-13

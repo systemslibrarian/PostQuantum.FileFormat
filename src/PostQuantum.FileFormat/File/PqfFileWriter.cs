@@ -45,6 +45,9 @@ public static class PqfFileWriter
         bool deterministicSigning,
         CancellationToken cancellationToken)
     {
+        // This overload is intentionally internal because `randomness` and
+        // `deterministicSigning` exist only for deterministic test-vector
+        // generation. Production callers must use the public overload above.
         if (recipients is null || recipients.Count == 0)
         {
             throw new ArgumentException("At least one recipient is required", nameof(recipients));
@@ -131,10 +134,18 @@ public static class PqfFileWriter
             var current = new byte[chunkSize];
             var next = new byte[chunkSize];
 
-            var currentRead = await plaintext.ReadAsync(current.AsMemory(0, chunkSize), cancellationToken).ConfigureAwait(false);
+            var currentRead = await plaintext.ReadAtLeastAsync(
+                current.AsMemory(0, chunkSize),
+                chunkSize,
+                throwOnEndOfStream: false,
+                cancellationToken).ConfigureAwait(false);
             while (currentRead > 0)
             {
-                var nextRead = await plaintext.ReadAsync(next.AsMemory(0, chunkSize), cancellationToken).ConfigureAwait(false);
+                var nextRead = await plaintext.ReadAtLeastAsync(
+                    next.AsMemory(0, chunkSize),
+                    chunkSize,
+                    throwOnEndOfStream: false,
+                    cancellationToken).ConfigureAwait(false);
                 var isFinal = nextRead == 0;
 
                 var encrypted = new byte[currentRead + 16];

@@ -24,7 +24,7 @@ public sealed class TestVectorConformanceTests
 
         Assert.NotNull(manifest);
         Assert.Equal("v1", manifest!.Version);
-        Assert.Equal(36, manifest.Vectors.Count);
+        Assert.Equal(47, manifest.Vectors.Count);
 
         var identities = manifest.Identities.ToDictionary(
             i => i.Id,

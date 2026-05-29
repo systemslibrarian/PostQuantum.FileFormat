@@ -6,6 +6,8 @@ few ways a fail-closed format becomes failure-open in the caller.
 
 **TL;DR:**
 
+**Do not trust streamed plaintext until final verification reports success.**
+
 - **Use Authenticated Mode** unless you have a specific reason not to.
   It is the default for `pqf decrypt` and for `PqfDecryptor.DecryptAsync`.
 - **Use Streaming Mode only when:**

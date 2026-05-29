@@ -1,7 +1,7 @@
 # PQF File Format — Specification, Version 1
 
 **Status:** DRAFT / EXPERIMENTAL — do not use to protect irreplaceable data.
-**Document version:** 0.3.1 (2026-04-21)
+**Document version:** 0.3.2 (2026-05-29)
 **Editor:** Paul Clark <paul@systemslibrarian.dev>
 **License:** MIT
 
@@ -10,6 +10,15 @@
 ---
 
 ## Change log
+
+**0.3.2 (2026-05-29)** — Pre-review hardening pass. Clarifications only, no
+wire-format, parameter, or normative-MUST changes:
+
+- §2: Added an explicit **parameter-set conformance** paragraph stating that
+  ML-KEM-768 / ML-DSA-65 (Category 3) are non-conformant for PQF v1 and that a
+  v1 reader MUST refuse any other parameter set. This sharpens — it does not
+  add to — the existing "readers that do not support all primitives MUST
+  refuse" requirement.
 
 **0.3.1 (2026-04-21)** — Polishing pass following ChatGPT v0.3.0 review. Six
 tightening fixes, no design changes:
@@ -115,6 +124,14 @@ to be interpreted as described in RFC 2119 and RFC 8174.
 
 Version 1 uses exactly the following primitives. Readers that do not support
 all of them MUST refuse to process version 1 files.
+
+**Parameter-set conformance.** PQF v1 is defined over exactly the suite in
+§2.1-§2.4. ML-KEM-768 and ML-DSA-65 (Category 3) are non-conformant for
+PQF v1: a v1 reader MUST refuse a header whose `alg.kem` or `alg.sig` names
+any other parameter set. This is deliberate for long-horizon file-at-rest
+confidentiality. Interactive/transport protocols with shorter lifetimes are
+out of scope for this format and may make different parameter choices in
+their own specifications.
 
 ### 2.1 Key encapsulation
 

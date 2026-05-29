@@ -22,9 +22,10 @@ public sealed class HybridSigner
     /// Ed25519 is already deterministic per RFC 8032 §5.1.6, so the full
     /// hybrid signature is byte-identical across runs for the same
     /// (signing-identity, message) pair. Used for byte-deterministic test
-    /// vector regeneration; not the recommended default for new files.
+    /// vector regeneration. This is test-only plumbing and must never be
+    /// surfaced through production encryption APIs.
     /// </summary>
-    public byte[] SignDeterministic(PqfSigningIdentity identity, ReadOnlySpan<byte> message)
+    internal byte[] SignDeterministic(PqfSigningIdentity identity, ReadOnlySpan<byte> message)
         => SignCore(identity, message, deterministic: true);
 
     private byte[] SignCore(PqfSigningIdentity identity, ReadOnlySpan<byte> message, bool deterministic)

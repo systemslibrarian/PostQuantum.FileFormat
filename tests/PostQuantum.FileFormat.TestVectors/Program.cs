@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using PostQuantum.FileFormat.Cbor;
 using PostQuantum.FileFormat.Crypto;
 using PostQuantum.FileFormat.File;
 using PostQuantum.FileFormat.Keys;
@@ -93,6 +94,34 @@ var negatives = new List<(string id, byte[] bytes, string reason, bool postHoc, 
     ("TV-NEG-020", MutateFooterPlaintextBytes(baseUnsigned, 123), nameof(PqfRefusalReason.FooterPlaintextBytesMismatch), true, "id-a"),
     ("TV-NEG-021", baseUnsigned, nameof(PqfRefusalReason.IdentityMatchesNoRecipient), false, "id-b"),
     ("TV-NEG-022", Mutate(baseUnsigned, b => b[^2] ^= 0x11), nameof(PqfRefusalReason.FooterPlaintextBytesMismatch), true, "id-a"),
+    // TV-NEG-023..033: header-schema malformations. Each is produced by parsing
+    // the deterministic CBOR header of an unsigned (or signed, for the signer
+    // case) base vector, mutating the structured value, re-encoding it
+    // deterministically, and splicing it back with a corrected length prefix.
+    // Header-schema validation runs before chunk/signature processing, so the
+    // (now-stale) tail bytes are irrelevant to the refusal.
+    // Unknown header field at the top level (spec §4.3).
+    ("TV-NEG-023", MutateHeader(baseUnsigned, e => e.Add(new(CborValue.Text("x_unknown_field"), CborValue.Uint(1)))), nameof(PqfRefusalReason.UnknownHeaderField), false, "id-a"),
+    // Unknown field inside the 'alg' map (spec §4.3 / §4.2.1).
+    ("TV-NEG-024", MutateHeader(baseUnsigned, e => AddNestedMapField(e, "alg", "x_unknown_alg", CborValue.Text("x"))), nameof(PqfRefusalReason.UnknownHeaderField), false, "id-a"),
+    // Unknown field inside the first recipient map (spec §4.3 / §8.4).
+    ("TV-NEG-025", MutateHeader(baseUnsigned, e => AddFirstRecipientField(e, "x_unknown_recipient", CborValue.Bytes(new byte[1]))), nameof(PqfRefusalReason.UnknownHeaderField), false, "id-a"),
+    // Unknown field inside the 'signer' map (spec §4.3) — requires a signed base.
+    ("TV-NEG-026", MutateHeader(baseSigned, e => AddNestedMapField(e, "signer", "x_unknown_signer", CborValue.Bytes(new byte[1]))), nameof(PqfRefusalReason.UnknownHeaderField), false, "id-a"),
+    // Algorithm identifier mismatch: a non-conformant KEM value (spec §4.2.1).
+    ("TV-NEG-027", MutateHeader(baseUnsigned, e => SetNestedMapField(e, "alg", "kem", CborValue.Text("x25519+ml-kem-768"))), nameof(PqfRefusalReason.AlgorithmIdentifierMismatch), false, "id-a"),
+    // Missing required field: drop 'chunk_size' (spec §6.3 step 4).
+    ("TV-NEG-028", MutateHeader(baseUnsigned, e => RemoveKey(e, "chunk_size")), nameof(PqfRefusalReason.MissingRequiredField), false, "id-a"),
+    // Empty recipients array (spec §8.4).
+    ("TV-NEG-029", MutateHeader(baseUnsigned, e => SetKey(e, "recipients", CborValue.Array([]))), nameof(PqfRefusalReason.RecipientsEmpty), false, "id-a"),
+    // Malformed 'created' timestamp: offset form instead of UTC 'Z' (spec §8.4).
+    ("TV-NEG-030", MutateHeader(baseUnsigned, e => SetKey(e, "created", CborValue.Tag(0, CborValue.Text("2025-01-01T00:00:00+00:00")))), nameof(PqfRefusalReason.CreatedTimestampInvalid), false, "id-a"),
+    // Invalid 'chunk_size': in range but not a power of two (spec §6.3 step 6).
+    ("TV-NEG-031", MutateHeader(baseUnsigned, e => SetKey(e, "chunk_size", CborValue.Uint(5000))), nameof(PqfRefusalReason.ChunkSizeInvalid), false, "id-a"),
+    // Binary field with wrong length: 'file_id' truncated to 15 bytes (spec §4.2.2).
+    ("TV-NEG-032", MutateHeader(baseUnsigned, e => SetKey(e, "file_id", CborValue.Bytes(new byte[15]))), nameof(PqfRefusalReason.BinaryFieldLengthMismatch), false, "id-a"),
+    // Duplicate CBOR map key at the top level (spec §4.3 / deterministic-CBOR).
+    ("TV-NEG-033", MutateHeader(baseUnsigned, DuplicateChunkSizeKey), nameof(PqfRefusalReason.DuplicateCborKey), false, "id-a"),
 };
 
 foreach (var neg in negatives)
@@ -278,6 +307,117 @@ static int FindFooterOffset(byte[] source)
 {
     var reader = PqfFileReader.OpenForValidation(source);
     return reader.FileBytes.Length - 20 - (reader.Header.Signer is not null ? HybridSigner.HybridSignatureLength : 0);
+}
+
+// --- Header-schema mutation helpers (TV-NEG-023..033) ---------------------
+// These parse the deterministic CBOR header out of a base vector, apply a
+// structured transform, re-encode deterministically, and splice the result
+// back into the container with a corrected 4-byte header-length prefix.
+
+static byte[] MutateHeader(byte[] source, Action<List<KeyValuePair<CborValue, CborValue>>> transform)
+{
+    var oldLen = (int)System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(source.AsSpan(6, 4));
+    var headerValue = (CborValue.MapValue)DeterministicCborValidator.ParseStrict(source.AsMemory(10, oldLen));
+
+    var entries = headerValue.Entries.ToList();
+    transform(entries);
+    var newHeaderBytes = DeterministicCborEncoder.Encode(CborValue.Map(entries));
+
+    var tail = source.AsSpan(10 + oldLen).ToArray();
+    var result = new byte[10 + newHeaderBytes.Length + tail.Length];
+    Buffer.BlockCopy(source, 0, result, 0, 10);
+    System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(result.AsSpan(6, 4), (uint)newHeaderBytes.Length);
+    Buffer.BlockCopy(newHeaderBytes, 0, result, 10, newHeaderBytes.Length);
+    Buffer.BlockCopy(tail, 0, result, 10 + newHeaderBytes.Length, tail.Length);
+    return result;
+}
+
+static int IndexOfKey(List<KeyValuePair<CborValue, CborValue>> entries, string key)
+    => entries.FindIndex(e => e.Key is CborValue.TextValue t && t.Value == key);
+
+static void SetKey(List<KeyValuePair<CborValue, CborValue>> entries, string key, CborValue value)
+{
+    var i = IndexOfKey(entries, key);
+    if (i < 0)
+    {
+        throw new InvalidOperationException($"Header field '{key}' not found.");
+    }
+
+    entries[i] = new KeyValuePair<CborValue, CborValue>(entries[i].Key, value);
+}
+
+static void RemoveKey(List<KeyValuePair<CborValue, CborValue>> entries, string key)
+{
+    var i = IndexOfKey(entries, key);
+    if (i < 0)
+    {
+        throw new InvalidOperationException($"Header field '{key}' not found.");
+    }
+
+    entries.RemoveAt(i);
+}
+
+static void AddNestedMapField(List<KeyValuePair<CborValue, CborValue>> entries, string mapKey, string fieldKey, CborValue fieldValue)
+{
+    var i = IndexOfKey(entries, mapKey);
+    if (i < 0 || entries[i].Value is not CborValue.MapValue map)
+    {
+        throw new InvalidOperationException($"Header field '{mapKey}' is not a map.");
+    }
+
+    var inner = map.Entries.ToList();
+    inner.Add(new KeyValuePair<CborValue, CborValue>(CborValue.Text(fieldKey), fieldValue));
+    entries[i] = new KeyValuePair<CborValue, CborValue>(entries[i].Key, CborValue.Map(inner));
+}
+
+static void SetNestedMapField(List<KeyValuePair<CborValue, CborValue>> entries, string mapKey, string fieldKey, CborValue fieldValue)
+{
+    var i = IndexOfKey(entries, mapKey);
+    if (i < 0 || entries[i].Value is not CborValue.MapValue map)
+    {
+        throw new InvalidOperationException($"Header field '{mapKey}' is not a map.");
+    }
+
+    var inner = map.Entries.ToList();
+    var j = inner.FindIndex(e => e.Key is CborValue.TextValue t && t.Value == fieldKey);
+    if (j < 0)
+    {
+        throw new InvalidOperationException($"Field '{fieldKey}' not found in '{mapKey}'.");
+    }
+
+    inner[j] = new KeyValuePair<CborValue, CborValue>(inner[j].Key, fieldValue);
+    entries[i] = new KeyValuePair<CborValue, CborValue>(entries[i].Key, CborValue.Map(inner));
+}
+
+static void AddFirstRecipientField(List<KeyValuePair<CborValue, CborValue>> entries, string fieldKey, CborValue fieldValue)
+{
+    var i = IndexOfKey(entries, "recipients");
+    if (i < 0 || entries[i].Value is not CborValue.ArrayValue array || array.Items.Count == 0
+        || array.Items[0] is not CborValue.MapValue recipient)
+    {
+        throw new InvalidOperationException("Header field 'recipients' is not a non-empty array of maps.");
+    }
+
+    var inner = recipient.Entries.ToList();
+    inner.Add(new KeyValuePair<CborValue, CborValue>(CborValue.Text(fieldKey), fieldValue));
+
+    var items = array.Items.ToList();
+    items[0] = CborValue.Map(inner);
+    entries[i] = new KeyValuePair<CborValue, CborValue>(entries[i].Key, CborValue.Array(items));
+}
+
+static void DuplicateChunkSizeKey(List<KeyValuePair<CborValue, CborValue>> entries)
+{
+    var i = IndexOfKey(entries, "chunk_size");
+    if (i < 0)
+    {
+        throw new InvalidOperationException("Header field 'chunk_size' not found.");
+    }
+
+    // Append a second 'chunk_size' entry. The deterministic encoder emits both
+    // (the map length includes the duplicate and the equal keys sort adjacent),
+    // which a conforming reader must reject as a duplicate CBOR map key.
+    entries.Add(new KeyValuePair<CborValue, CborValue>(entries[i].Key, entries[i].Value));
 }
 
 internal sealed record VectorManifest(
