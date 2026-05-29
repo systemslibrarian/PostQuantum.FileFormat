@@ -1,6 +1,6 @@
 # PQF Design Rationale — Companion to PQF-SPEC-v1
 
-**Status:** DRAFT / EXPERIMENTAL companion to PQF-SPEC-v1 v0.3.1
+**Status:** DRAFT / EXPERIMENTAL companion to PQF-SPEC-v1 v0.4
 **Document version:** 0.1.0 (2026-04-21)
 **Author:** Paul Clark <paul@systemslibrarian.dev>
 **License:** MIT

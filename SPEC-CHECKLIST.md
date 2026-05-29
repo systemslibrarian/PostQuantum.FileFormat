@@ -1,6 +1,6 @@
 # PQF Implementation Checklist
 
-**Derived from:** `spec/PQF-SPEC-v1.md` v0.3.2
+**Derived from:** `spec/PQF-SPEC-v1.md` v0.4
 **Purpose:** Exhaustive list of normative requirements, organized by
 implementation surface. Every item traces back to a specific spec section.
 **Status:** Companion document. Not normative — the spec is authoritative.
@@ -8,7 +8,7 @@ If this checklist and the spec disagree, the spec wins.
 
 **Verification snapshot:** All boxes below are checked as of the
 2026-04-22 hardening pass. Each section is exercised by the test suites
-under `tests/PostQuantum.FileFormat.Tests/` (130 passing, 0 skipped) and
+under `tests/PostQuantum.FileFormat.Tests/` (139 passing, 3 skipped) and
 the conformance vectors under `tests/PostQuantum.FileFormat.TestVectors/`.
 See `docs/SPEC-CHECKLIST-REVIEW-2026-04-22.md` for the per-area evidence
 and the remaining release-management items (versioning, tags, external
@@ -30,7 +30,7 @@ review) which are tracked outside this implementation checklist.
 - 🟡 SHOULD / SHOULD NOT — strong guidance, deviate only with documented reason
 - ⚪ MAY — optional feature, conforming to implement or not
 
-Total normative statements in spec v0.3.2: 66 MUST/SHOULD items.
+Total normative statements in spec v0.4: 66 MUST/SHOULD items.
 
 ---
 
