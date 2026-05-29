@@ -11,6 +11,8 @@ policy. Wire format changes are called out here under "Wire format."
 
 ## [Unreleased]
 
+## [0.4.0-preview.3] — 2026-05-29
+
 ### Added
 
 - **CDDL formal schema** for the PQF v1 header
@@ -118,10 +120,11 @@ policy. Wire format changes are called out here under "Wire format."
 
 ### Wire format
 
-- **No breaking changes.** Spec draft bumped 0.3.1 → 0.3.2
-  (clarifications only: explicit parameter-set conformance note in
-  §2). No wire-format, parameter, or normative-MUST change. The
-  header CDDL schema in `spec/pqf-header.cddl` matches the prose in
+- **No breaking changes.** Spec document advanced 0.3.1 → 0.4
+  (reviewer-readiness milestone; tag `spec-v0.4`). The only normative
+  clarification is the explicit parameter-set conformance note in §2.
+  No wire-format, parameter, or normative-MUST change. The header CDDL
+  schema in `spec/pqf-header.cddl` matches the prose in
   `spec/PQF-SPEC-v1.md` §4 byte-for-byte.
 
 ## [0.4.0-preview.2] — 2026-02-13
@@ -146,6 +149,7 @@ policy. Wire format changes are called out here under "Wire format."
 
 - Draft v0.3.1 (unchanged from internal Phase 4 release).
 
-[Unreleased]: https://github.com/systemslibrarian/PostQuantum.FileFormat/compare/v0.4.0-preview.2...HEAD
+[Unreleased]: https://github.com/systemslibrarian/PostQuantum.FileFormat/compare/v0.4.0-preview.3...HEAD
+[0.4.0-preview.3]: https://github.com/systemslibrarian/PostQuantum.FileFormat/compare/v0.4.0-preview.2...v0.4.0-preview.3
 [0.4.0-preview.2]: https://github.com/systemslibrarian/PostQuantum.FileFormat/releases/tag/v0.4.0-preview.2
 [0.4.0-preview.1]: https://github.com/systemslibrarian/PostQuantum.FileFormat/releases/tag/v0.4.0-preview.1
