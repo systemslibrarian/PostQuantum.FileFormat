@@ -9,16 +9,16 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>pqf</ToolCommandName>
     <PackageId>PostQuantum.FileFormat.Cli</PackageId>
-    <Version>0.4.0-preview.2</Version>
+    <Version>0.6.0-preview.2</Version>
     <Authors>PostQuantum.FileFormat contributors</Authors>
-    <Description>pqf is the command-line tool for the Post-Quantum File Format (PQF): a hybrid post-quantum (X25519+ML-KEM-768 / Ed25519+ML-DSA-87) encrypted file container with a deterministic CBOR header, fail-closed parser, and reference test vectors. EXPERIMENTAL preview; not externally audited; do not use to protect irreplaceable data.</Description>
-    <PackageTags>post-quantum;cryptography;encryption;file-format;ml-kem;ml-dsa;hybrid;cbor;cli;dotnet-tool</PackageTags>
+    <Description>pqf is the command-line tool for the Post-Quantum File Format (PQF): a hybrid post-quantum (X25519+ML-KEM-768 / Ed25519+ML-DSA-87) encrypted file container using the X-Wing KEM combiner (draft-connolly-cfrg-xwing-kem), with a deterministic CBOR header, fail-closed parser, and reference test vectors. EXPERIMENTAL preview; not externally audited; do not use to protect irreplaceable data.</Description>
+    <PackageTags>post-quantum;cryptography;encryption;file-format;ml-kem;ml-dsa;x-wing;hybrid;cbor;cli;dotnet-tool</PackageTags>
     <PackageProjectUrl>https://github.com/systemslibrarian/PostQuantum.FileFormat</PackageProjectUrl>
     <RepositoryUrl>https://github.com/systemslibrarian/PostQuantum.FileFormat</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageReleaseNotes>0.4.0-preview.2: enable major-version roll-forward so the tool runs on .NET 8, 9, or 10 without DOTNET_ROLL_FORWARD=Major. No behavior change. EXPERIMENTAL; not externally audited.</PackageReleaseNotes>
+    <PackageReleaseNotes>0.6.0-preview.2: wire-incompatible break from 0.5. KEM combiner switched from the in-house pqf1-bind-extract-v1 HKDF construction to X-Wing (draft-connolly-cfrg-xwing-kem) with ML-KEM-768; both .NET and Rust impls validated against the X-Wing IETF draft Appendix C test vector; build target narrowed to net10.0 only and ML-KEM/ML-DSA come from the BCL native types directly (no reflection bridge). Full notes in CHANGELOG.md. EXPERIMENTAL; not externally audited.</PackageReleaseNotes>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
