@@ -87,6 +87,46 @@ primitive provides. See
 [`docs/SIDE-CHANNEL-POSTURE.md`](./SIDE-CHANNEL-POSTURE.md) for the
 per-primitive breakdown.
 
+### Remaining migration notes — the two deliberate BouncyCastle usages
+
+Two specific code paths in the .NET reference implementation still
+call into BouncyCastle 2.6.2. Both are deliberate, both are scoped,
+both are honest about the tradeoff:
+
+1. **X25519 and Ed25519** stay on `BouncyCastle.Crypto`'s
+   `X25519Agreement` and `Ed25519Signer`. The BCL's Curve25519 surface
+   in .NET 10 is not uniform across platforms — different OS providers
+   expose different `ECDiffieHellman` shapes and some are missing
+   primitive-level Curve25519 entirely. Migrating these would require
+   either dropping back to a runtime-feature-detected fallback (which
+   reintroduces the reflection bridge we just deleted) or accepting
+   non-uniform behavior across the Windows / Linux / macOS matrix.
+   Neither is acceptable for an archival format whose reproducibility
+   gates depend on byte-identical output. **Rationale carried over
+   from the prior session: classical-half side channels are not on
+   the harvest-now/decrypt-later attack surface; PQ encap and PQ
+   signing are. The BC code path for the classical halves is
+   accepted as the leaf-dep cost of cross-platform uniformity.**
+2. **Deterministic ML-DSA-87 signing** (FIPS 204 with `rnd = 0`,
+   exposed via `MlDsa87SignDeterministic`) stays on BC. The BCL
+   `MLDsa.SignData` does not yet expose a stable randomness knob, so
+   there is no way to ask the platform crypto for the rnd-zero
+   variant on .NET 10. This path is used ONLY for byte-deterministic
+   test-vector regeneration (`tests/PostQuantum.FileFormat.TestVectors`)
+   and the reproducible-pack determinism gate; production encrypt /
+   sign callers never reach it. **Rationale carried over from the
+   prior session: this is test-only plumbing whose security model is
+   "the test fixtures must regenerate byte-for-byte across machines."
+   The BC backend is fine for that goal, and the
+   `BclCryptoProvider.MlDsa87SignDeterministic` member is marked
+   internal so production APIs cannot surface it accidentally.**
+
+When the BCL ships a stable cross-platform Curve25519 / Ed25519 surface
+**or** a deterministic ML-DSA signing API, both migrations follow the
+same pattern as the ML-KEM / ML-DSA bridges (see
+`Crypto/BclCryptoProvider.cs`). Until then these two paths are the
+documented scope of BouncyCastle in the codebase.
+
 ## Open questions
 
 - Streaming post-hoc failure ergonomics and API contracts: see rationale
