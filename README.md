@@ -257,7 +257,7 @@ optional extension, and the parser is fail-closed by construction.
 
 | Property | PQF (this project) | age | GPG (OpenPGP) | Tink | libsodium / NaCl box |
 |---|---|---|---|---|---|
-| Confidentiality primitives | X25519 **+ ML-KEM-1024** (hybrid) | X25519 | RSA / ECDH (classical) | AEAD-only by default | X25519 |
+| Confidentiality primitives | X25519 **+ ML-KEM-768** via X-Wing (hybrid) | X25519 | RSA / ECDH (classical) | AEAD-only by default | X25519 |
 | PQ posture | Hybrid PQ by default | None (classical) | None (classical) | None | None |
 | Signatures | Optional hybrid: Ed25519 **+ ML-DSA-87** | None (encryption-only) | RSA / EdDSA (classical) | Signature primitives, classical | Ed25519 |
 | Wire format | Deterministic CBOR (RFC 8949 §4.2.2) | Custom textual + binary | OpenPGP packet format (RFC 9580) | Protobuf (keyset), per-primitive ciphertext | Raw concatenation |
@@ -271,6 +271,92 @@ If you want a stable, audited classical format today, **age** is the right
 choice for most file-at-rest cases. PQF is for callers who explicitly need
 "this file should remain confidential against a quantum-capable adversary
 decades from now, and I don't want a flag to forget."
+
+## Why not just use age, S/MIME, or OpenSSL CMS?
+
+The honest answer per alternative — what each one gives you, what it
+doesn't, and the specific reason PQF exists alongside them.
+
+### age (`age-encryption.org`)
+
+**Use age** if your threat model is anything other than HNDL with
+quantum capability. age is mature, audited multiple times, has a
+cleanly specified format, and is the right answer for the
+overwhelming majority of file-at-rest cases in 2026. Its X25519
+confidentiality is excellent against today's adversaries.
+
+**PQF differs in one specific way:** age is purely classical. A 2026
+ciphertext encrypted with age becomes recoverable to whoever owns a
+cryptographically-relevant quantum computer in 2035+. age has discussed
+PQ extensions (e.g. `age-plugin-xwing` exists) but the format
+itself is X25519-only by spec. PQF starts from "hybrid PQ is the
+default, not a plugin" and pays for that with a bigger wire format,
+younger primitives, and a smaller audited history.
+
+### S/MIME (RFC 8551)
+
+**Use S/MIME** if you are operating inside an established X.509 PKI
+(corporate CA, certificate authorities, S/MIME-capable mail clients),
+and your audience has S/MIME-capable readers.
+
+**PQF differs in three significant ways:**
+
+1. S/MIME is CMS-based, which is a TLV format with a long history of
+   parser ambiguity and downgrade bugs (the format predates the
+   modern fail-closed design discipline). PQF uses deterministic CBOR
+   with a closed schema and refuses on any unknown field.
+2. S/MIME has no standardized hybrid PQ profile. There are CMS
+   extensions (`draft-ietf-lamps-cms-kemri`, `draft-ietf-lamps-pq-composite-kem`)
+   that aim to fix this, but they are drafts; PQF is also a draft, but
+   it picked a single standardized combiner (X-Wing) rather than
+   creating its own.
+3. S/MIME is bound to the X.509 ecosystem (issuer chains, CRLs / OCSP,
+   subject DNs). PQF is keypair-only by design — no CA, no revocation
+   semantics, no DN. That's a feature for some workflows and a missing
+   feature for others.
+
+### OpenSSL CMS (`openssl cms`)
+
+**Use `openssl cms`** if you need a battle-tested CLI that produces
+RFC 5652 CMS containers (the format S/MIME wraps) and you're willing
+to manage the X.509 plumbing yourself.
+
+**PQF differs in the same three ways as S/MIME**, plus a
+parser-stance difference: OpenSSL's CMS parser has historically been
+permissive (it has shipped fixes for malformed-input handling bugs as
+recently as 2024). PQF's parser is fail-closed by design and rejects
+any structural variation, including non-deterministic CBOR encoding
+that would still round-trip to the same logical structure.
+
+### PGP / GnuPG / OpenPGP (RFC 9580)
+
+**Use OpenPGP** if your audience has GPG-shaped tooling
+(Linux distros, Debian package signing, established PGP webs of
+trust) and your threat model accepts classical-only confidentiality.
+
+**PQF differs significantly:**
+
+1. PGP is a packet format with decades of accumulated parser footguns;
+   the IETF is on RFC 9580 specifically because of those. PQF's
+   deterministic-CBOR-with-closed-schema is the modern version of
+   that lesson.
+2. PGP's PQ story is similar to S/MIME's: extension drafts exist
+   (X-Wing in OpenPGP is being discussed at the IETF), but the format
+   itself is classical. PQF picked the standardized X-Wing combiner
+   and made hybrid PQ the default.
+3. PGP's signature semantics carry web-of-trust baggage that PQF does
+   not. PQF signatures only attest "this hybrid private keypair
+   produced these signature bytes over this exact header / file." Any
+   identity binding is the caller's responsibility.
+
+### Why use PQF at all, then?
+
+The narrow case where PQF is the right tool: **you want a file format
+where (a) hybrid post-quantum confidentiality is the default not an
+extension, (b) the parser refuses every form of malformed input by
+construction not by convention, and (c) the implementation is small
+enough to read end-to-end in an afternoon.** Outside that case, the
+mature alternatives are better.
 
 ## Why this exists
 

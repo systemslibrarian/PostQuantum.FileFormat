@@ -4,8 +4,18 @@ name: Release
 # Produces:
 #   - The packed CLI nupkg, pushed to NuGet.org.
 #   - A CycloneDX SBOM for the CLI, attached to the release.
+#   - Sigstore cosign keyless signature (.sig) + certificate (.pem) for the
+#     nupkg and SBOM, anchored in the public Rekor transparency log.
 #   - SLSA Level 3 build provenance (via slsa-github-generator) for the nupkg
 #     and SBOM, attached to the release.
+#
+# A consumer can verify:
+#   cosign verify-blob \
+#     --signature   <nupkg>.sig \
+#     --certificate <nupkg>.pem \
+#     --certificate-identity-regexp 'https://github.com/systemslibrarian/PostQuantum.FileFormat/.+' \
+#     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+#     <nupkg>
 #
 # Secrets required:
 #   NUGET_API_KEY — push-only key scoped to PostQuantum.FileFormat.Cli.
@@ -19,8 +29,11 @@ permissions:
 
 jobs:
   build:
-    name: Build, pack, SBOM
+    name: Build, pack, SBOM, cosign
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # required for Sigstore keyless OIDC
     outputs:
       nupkg-name: ${{ steps.pack.outputs.nupkg-name }}
       nupkg-sha256: ${{ steps.hash.outputs.nupkg-sha256 }}
@@ -30,7 +43,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup .NET 8
+      - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
@@ -64,6 +77,31 @@ jobs:
             --output artifacts \
             --filename pqf-cli.cdx.json
 
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: v2.4.1
+
+      - name: Sign artifacts with cosign (keyless, OIDC)
+        # Keyless signing: cosign requests an OIDC token from the
+        # GitHub Actions identity provider, exchanges it for a short-lived
+        # X.509 certificate from Fulcio (sigstore CA), signs the blob, and
+        # publishes the signature + certificate + log entry to the public
+        # Rekor transparency log at https://rekor.sigstore.dev. No
+        # long-lived signing key ever exists. A consumer can verify the
+        # signature with `cosign verify-blob` against this repository's
+        # workflow identity.
+        run: |
+          cd artifacts
+          NUPKG=$(ls *.nupkg | head -n1)
+          for f in "$NUPKG" pqf-cli.cdx.json; do
+            cosign sign-blob --yes \
+              --output-signature   "$f.sig" \
+              --output-certificate "$f.pem" \
+              "$f"
+          done
+          ls -la
+
       - name: Compute SHA-256 hashes
         id: hash
         run: |
@@ -74,6 +112,8 @@ jobs:
           echo "nupkg-sha256=$NUPKG_HASH" >> "$GITHUB_OUTPUT"
           echo "sbom-sha256=$SBOM_HASH"   >> "$GITHUB_OUTPUT"
           # base64-encoded multi-line "sha256  filename" pairs for SLSA generator.
+          # SLSA attests the nupkg + SBOM (cosign files are themselves
+          # transparency-log anchored, no need to double-attest them).
           HASHES=$(sha256sum "$NUPKG" pqf-cli.cdx.json | base64 -w0)
           echo "hashes=$HASHES" >> "$GITHUB_OUTPUT"
 
@@ -103,7 +143,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Setup .NET 8
+      - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
@@ -121,9 +161,20 @@ jobs:
             --source https://api.nuget.org/v3/index.json \
             --skip-duplicate
 
-      - name: Attach SBOM to release
+      - name: Attach SBOM + cosign artifacts to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.event.release.tag_name }}
         run: |
-          gh release upload "$TAG" artifacts/pqf-cli.cdx.json --clobber
+          cd artifacts
+          # SBOM
+          gh release upload "$TAG" pqf-cli.cdx.json --clobber
+          # Sigstore signatures + certificates for the nupkg and SBOM. These
+          # let any consumer run `cosign verify-blob` against the public
+          # Rekor log without needing the long-lived signing key (there
+          # isn't one — keyless OIDC).
+          for ext in sig pem; do
+            for f in *."$ext"; do
+              gh release upload "$TAG" "$f" --clobber
+            done
+          done

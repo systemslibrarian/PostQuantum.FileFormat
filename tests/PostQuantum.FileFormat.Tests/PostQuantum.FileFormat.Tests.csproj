@@ -23,4 +23,13 @@
     <ProjectReference Include="..\..\src\PostQuantum.FileFormat\PostQuantum.FileFormat.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- NIST ACVP test vectors used by NistAcvpKatTests. Copied next to the
+         test assembly so the test class can load it via assembly-relative
+         path without a network dep or embedded-resource gymnastics. -->
+    <None Update="Crypto\nist-acvp-vectors.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
