@@ -26,7 +26,7 @@ the standardized X-Wing combiner. Changes:
   combiner and defeat the purpose of adopting X-Wing.
 - §2.4 Combiner: the PQF in-house `pqf1-bind-extract-v1` HKDF combiner
   is **removed**. KEM-level shared-secret derivation is now
-  `SHA3-256( "\.//^\" || ss_M || ss_X || ct_X || pk_X )` exactly as
+  `SHA3-256( ss_M || ss_X || ct_X || pk_X || "\.//^\" )` exactly as
   specified by draft-connolly-cfrg-xwing-kem.
 - §4.2.1 `alg.combiner` exact-match value: `"pqf1-bind-extract-v1"`
   → `"x-wing"`. `alg.kem` exact-match value:
@@ -202,7 +202,7 @@ The hybrid KEM shared secret (the recipient's KEK) is derived by the
 **X-Wing combiner** per draft-connolly-cfrg-xwing-kem:
 
 ```
-KEK = SHA3-256( XWING_LABEL || ss_M || ss_X || ct_X || pk_X )
+KEK = SHA3-256( ss_M || ss_X || ct_X || pk_X || XWING_LABEL )
 ```
 
 where:

@@ -362,17 +362,22 @@ pub fn decrypt(parsed: &ParsedFile, identity: &Identity) -> Result<Vec<u8>> {
             Err(_) => continue,
         };
 
-        // X-Wing combiner: KEK = SHA3-256(label || ss_M || ss_X || ct_X || pk_X)
+        // X-Wing combiner: KEK = SHA3-256(ss_M || ss_X || ct_X || pk_X || label)
         // (draft-connolly-cfrg-xwing-kem). pk_X is the recipient's own
         // X25519 public key, recomputed from the static secret so we
         // never trust a value carried in the header for this purpose.
+        // Per draft-connolly-cfrg-xwing-kem the label is APPENDED:
+        //   SHA3-256(ss_M || ss_X || ct_X || pk_X || XWingLabel)
+        // An earlier version of this code prepended the label; the
+        // X-Wing draft KAT in pqf-writer/tests/xwing_draft_kat.rs caught
+        // the discrepancy on 2026-05-30.
         let pk_x: [u8; 32] = XPub::from(&x_sec).to_bytes();
         let mut sha3 = <Sha3_256 as sha3::Digest>::new();
-        sha3.update(XWING_LABEL);
         sha3.update(ss_pqc.as_slice());          // ss_M (32)
         sha3.update(ss_classical.as_bytes());    // ss_X (32)
         sha3.update(&r.classical_epk);           // ct_X (32)
         sha3.update(&pk_x);                      // pk_X (32)
+        sha3.update(XWING_LABEL);                // 6 bytes "\.//^\"
         let kek_arr = sha3.finalize();
         let mut kek = [0u8; 32];
         kek.copy_from_slice(&kek_arr);

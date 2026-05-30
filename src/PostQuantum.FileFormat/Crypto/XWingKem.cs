@@ -13,7 +13,7 @@ namespace PostQuantum.FileFormat.Crypto;
 /// PQF combiner did not.
 ///
 /// Combiner formula:
-///   ss = SHA3-256( XWING_LABEL || ss_M || ss_X || ct_X || pk_X )
+///   ss = SHA3-256( ss_M || ss_X || ct_X || pk_X || XWING_LABEL )
 /// where
 ///   XWING_LABEL is the 6-byte ASCII art "\.//^\" — bytes 5C 2E 2F 2F 5E 5C
 ///   ss_M        is the 32-byte ML-KEM-768 shared secret
@@ -169,11 +169,18 @@ public sealed class XWingKem
         var pkXBuf = pkX.ToArray();
         try
         {
-            sha3.BlockUpdate(labelBuffer.ToArray(), 0, labelBuffer.Length);
+            // Per draft-connolly-cfrg-xwing-kem the label is APPENDED
+            // (concat(ss_M, ss_X, ct_X, pk_X, XWingLabel)), not prepended.
+            // An earlier version of this code had the label first; the
+            // X-Wing draft KAT in tests/xwing_draft_kat.rs caught the
+            // discrepancy on 2026-05-30. Self-consistency tests would
+            // not have noticed because both sides of every round-trip
+            // used the wrong order.
             sha3.BlockUpdate(ssMBuf, 0, ssMBuf.Length);
             sha3.BlockUpdate(ssXBuf, 0, ssXBuf.Length);
             sha3.BlockUpdate(ctXBuf, 0, ctXBuf.Length);
             sha3.BlockUpdate(pkXBuf, 0, pkXBuf.Length);
+            sha3.BlockUpdate(labelBuffer.ToArray(), 0, labelBuffer.Length);
 
             var output = new byte[SharedSecretLength];
             sha3.DoFinal(output, 0);

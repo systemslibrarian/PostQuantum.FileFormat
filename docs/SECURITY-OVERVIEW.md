@@ -38,7 +38,7 @@ As of draft 0.6, PQF uses the **X-Wing** combiner exactly as specified in
 draft-connolly-cfrg-xwing-kem:
 
 ```
-KEK = SHA3-256( "\.//^\" || ss_M || ss_X || ct_X || pk_X )
+KEK = SHA3-256( ss_M || ss_X || ct_X || pk_X || "\.//^\" )
 ```
 
 where the label is the literal 6-byte ASCII art `5C 2E 2F 2F 5E 5C` (NOT

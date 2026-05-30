@@ -12,7 +12,7 @@ One page, one target, one set of evidence. If you are reviewing PQF, start here.
 | Hybrid signatures | Ed25519 + ML-DSA-87 (`alg.sig` = `ed25519+ml-dsa-87`), with `PQF1-header-sig-v1` / `PQF1-file-sig-v1` domain prefixes |
 | AEAD | AES-256-GCM, chunked, per-chunk HKDF-Expand keys |
 | Conformance vector pack | `test-vectors/v1/` — 14 positive + 33 negative = **47** |
-| Vector pack fingerprint | `sha256(SHA256SUMS) = a1fe99c8085f36d3438945c3143c2802439b4b16c7dee5fb23d1a53559ddc309` |
+| Vector pack fingerprint | `sha256(SHA256SUMS) = acf7876729ace1a8903cdc2916923d340d93dd2b4a0643201b007c41c2beedf9` |
 | Spec | [`spec/PQF-SPEC-v1.md`](../spec/PQF-SPEC-v1.md) |
 | Rationale (the "why") | [`spec/PQF-DESIGN-RATIONALE-v1.md`](../spec/PQF-DESIGN-RATIONALE-v1.md) |
 | One-page security model | [`docs/SECURITY-OVERVIEW.md`](./SECURITY-OVERVIEW.md) |
@@ -41,7 +41,7 @@ mutually refuse at the algorithm-identifier check (`alg.combiner` and
   removed and replaced with the X-Wing combiner from
   draft-connolly-cfrg-xwing-kem:
   ```
-  KEK = SHA3-256( "\.//^\" || ss_M || ss_X || ct_X || pk_X )
+  KEK = SHA3-256( ss_M || ss_X || ct_X || pk_X || "\.//^\" )
   ```
   where the label is the literal 6-byte ASCII art `5C 2E 2F 2F 5E 5C`
   (NOT the string "X-Wing"), `ss_M` is the ML-KEM-768 shared secret,
@@ -80,7 +80,7 @@ intentional tradeoff, or an open question. Each is labelled:
 | Header vs file signature domain separation | **RESOLVED in 0.5** — distinct prefixes (preserved through 0.6) | spec §6.2; rationale §11.6 |
 | Unsigned files have no authenticity, incl. whole-payload erasure-to-empty | **ACCEPTED v1 tradeoff** — unsigned ≡ no authenticity by definition; sign the file to detect it | THREAT-MODEL STRIDE rows; rationale §11.7 |
 | Streaming releases plaintext before final verification | **OPERATIONAL REQUIREMENT** — callers MUST honor the post-hoc result (`[MustUseReturnValue]`); Authenticated Mode is the buffered default | spec §6.4.2; `docs/STREAMING.md` |
-| Cross-impl KAT against the X-Wing draft's published test vector | **OPEN** — XWingKemTests pin the byte-correct label and self-consistency, but a KAT against the draft's appendix vector is the highest-value next test | `tests/.../Crypto/XWingKemTests.cs`; tracked as a follow-up |
+| Cross-impl KAT against the X-Wing draft's published test vector | **RESOLVED in 0.6.0-preview.2** — `impl/rust/pqf-writer/tests/xwing_draft_kat.rs` replays draft-connolly-cfrg-xwing-kem Appendix C example 1 through the same crypto stack PQF uses and asserts byte-equal `ss`. This KAT immediately caught a real bug (label position) in preview.1; see CHANGELOG. | `impl/rust/pqf-writer/tests/xwing_draft_kat.rs` |
 | Symbolic / machine-checked proof of the overall assembly | **OPEN at the assembly level** — X-Wing combiner is externally proven; the full PQF stack (X-Wing + per-recipient AEAD wrap + chunked AEAD + hybrid sigs + footer) is not yet end-to-end modelled. The pre-0.6 symbolic models in `spec/symbolic/` were specific to the old combiner and are marked superseded | spec §13; `spec/symbolic/README.md` |
 
 ## How to reproduce the evidence
@@ -165,12 +165,16 @@ to a "10/10" review artifact:
    AEAD with `is_final` AAD binding, footer reconciliation, hybrid
    signature construction with domain separation). This is the single
    highest-value remaining step.
-2. **A KAT against the X-Wing IETF draft's published appendix test
-   vector** in both .NET and Rust impls. The `XWingKemTests` currently
-   pin the byte-correct combiner label and exercise binding properties
-   in self-consistency; cross-validating against
-   draft-connolly-cfrg-xwing-kem's published `(seed, eseed, ct, ss)`
-   tuple is the next test to land.
+2. **A C# port of the X-Wing draft KAT.** The Rust KAT
+   (`impl/rust/pqf-writer/tests/xwing_draft_kat.rs`) now validates the
+   combiner against the draft Appendix C vector and caught a real bug
+   in preview.1. Porting the same `(pk, eseed, ss)` fixture into a C#
+   `XWingKem_DraftKAT` test would make the .NET implementation
+   independently self-evidencing, not just transitively-validated by
+   sharing the formula with the Rust side. (Blocking issue: BouncyCastle
+   2.6.2 does not expose ML-KEM deterministic encap with explicit
+   randomness on its public API; the same trick the Rust KAT used
+   needs either a BC internal-API hookup or a custom fake-RNG bridge.)
 3. **GPG-signed tags and signed release artifacts** (the maintainer holds
    the key; this packet is unsigned).
 4. A **published, attested release** with the SBOM + SLSA provenance the

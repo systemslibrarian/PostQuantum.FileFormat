@@ -10,7 +10,7 @@
 //!   - X25519 ephemeral keygen + ECDH with each recipient's classical pub.
 //!   - ML-KEM-768 encapsulation against each recipient's PQ pub.
 //!   - **X-Wing combiner** (draft-connolly-cfrg-xwing-kem):
-//!     `KEK = SHA3-256("\.//^\" || ss_M || ss_X || ct_X || pk_X)`.
+//!     `KEK = SHA3-256(ss_M || ss_X || ct_X || pk_X || "\.//^\")`.
 //!   - AES-256-GCM wrap of the per-file DEK under each recipient KEK
 //!     with AAD `file_id (16) || recipient_index (u32 BE)` — preserving
 //!     per-file and per-recipient binding that the X-Wing combiner has
@@ -379,14 +379,17 @@ fn build_recipient_block(
     let pqc_ct: Vec<u8> = ct_arr.as_slice().to_vec();
 
     // X-Wing combiner per draft-connolly-cfrg-xwing-kem:
-    //   KEK = SHA3-256(label || ss_M || ss_X || ct_X || pk_X)
-    // where label is the 6-byte literal "\.//^\".
+    //   KEK = SHA3-256(ss_M || ss_X || ct_X || pk_X || label)
+    // where label is the 6-byte literal "\.//^\" (APPENDED, not prepended).
+    // An earlier version of this code prepended the label; the
+    // X-Wing draft KAT in tests/xwing_draft_kat.rs caught the
+    // discrepancy on 2026-05-30.
     let mut sha3 = <Sha3_256 as sha3::Digest>::new();
-    sha3.update(XWING_LABEL);
     sha3.update(ss_pqc.as_slice());          // ss_M (32)
     sha3.update(ss_classical.as_bytes());    // ss_X (32)
     sha3.update(epk.as_bytes());             // ct_X (32)
     sha3.update(&recipient.x25519_pub());    // pk_X (32)
+    sha3.update(XWING_LABEL);                // 6 bytes "\.//^\"
     let kek_arr = sha3.finalize();
     let mut kek = [0u8; 32];
     kek.copy_from_slice(&kek_arr);

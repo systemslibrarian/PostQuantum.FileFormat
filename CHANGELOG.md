@@ -11,6 +11,34 @@ policy. Wire format changes are called out here under "Wire format."
 
 ## [Unreleased]
 
+## [0.6.0-preview.2] — 2026-05-30
+
+### Fixed — interop-breaking, same-day follow-up to 0.6.0-preview.1
+
+- **X-Wing combiner label position corrected.** 0.6.0-preview.1 hashed
+  `SHA3-256(XWING_LABEL || ss_M || ss_X || ct_X || pk_X)` (label
+  **prepended**). Per draft-connolly-cfrg-xwing-kem the label is
+  **appended**: `SHA3-256(ss_M || ss_X || ct_X || pk_X || XWING_LABEL)`.
+  All XWingKem self-consistency / round-trip tests passed under the
+  wrong order because both encap and decap used it consistently. The
+  bug was caught by the new draft KAT test
+  (`impl/rust/pqf-writer/tests/xwing_draft_kat.rs`) which replays the
+  X-Wing draft Appendix C, example 1 vector through the same crypto
+  stack PQF uses (ml-kem 0.2 with `deterministic` feature, x25519-dalek
+  2.0, sha3 0.10) and asserts the computed shared secret equals the
+  published `ss` byte-for-byte.
+- This invalidates every test vector produced under preview.1 — vectors
+  regenerated under the corrected combiner. The new vector pack
+  fingerprint is `sha256(SHA256SUMS) =
+  acf7876729ace1a8903cdc2916923d340d93dd2b4a0643201b007c41c2beedf9`.
+- Spec, REVIEWER-PACKET, SECURITY-OVERVIEW, DESIGN-RATIONALE, and all
+  doc comments in the XWingKem implementations updated to show the
+  formula with the label appended.
+
+The lesson: self-consistency tests are necessary but not sufficient
+for cryptographic interop. **KAT against a published standard test
+vector is the only reliable way to catch this class of bug.**
+
 ## [0.6.0-preview.1] — 2026-05-30
 
 ### Wire format — BREAKING
@@ -166,7 +194,8 @@ policy. Wire format changes are called out here under "Wire format."
 
 - Draft v0.3.1 (unchanged from internal Phase 4 release).
 
-[Unreleased]: https://github.com/systemslibrarian/PostQuantum.FileFormat/compare/v0.6.0-preview.1...HEAD
+[Unreleased]: https://github.com/systemslibrarian/PostQuantum.FileFormat/compare/v0.6.0-preview.2...HEAD
+[0.6.0-preview.2]: https://github.com/systemslibrarian/PostQuantum.FileFormat/releases/tag/v0.6.0-preview.2
 [0.6.0-preview.1]: https://github.com/systemslibrarian/PostQuantum.FileFormat/releases/tag/v0.6.0-preview.1
 [0.4.0-preview.2]: https://github.com/systemslibrarian/PostQuantum.FileFormat/releases/tag/v0.4.0-preview.2
 [0.4.0-preview.1]: https://github.com/systemslibrarian/PostQuantum.FileFormat/releases/tag/v0.4.0-preview.1
