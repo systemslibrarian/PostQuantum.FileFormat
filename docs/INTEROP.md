@@ -17,7 +17,7 @@ Open an issue to add a row, or — better — open a PR moving a row from
 
 | Target | State | Notes |
 |---|---|---|
-| .NET 8 / 9 / 10 (reader + writer) | Shipped | Reference implementation. Runtime matrix in CI. |
+| .NET 10 (reader + writer) | Shipped | Reference implementation. Single-target `net10.0` since 0.6.0-preview.2 — the BCL native ML-KEM / ML-DSA APIs are mandatory. |
 | Rust (reader) | Shipped | `impl/rust/pqf-reader`; gates `rust-conformance` CI job. |
 | Rust (writer) | In progress | `impl/rust/pqf-writer`; deterministic CBOR header done, crypto operations stubbed. |
 | Python (reader) | In progress | `bindings/python` pyo3 wrapper around Rust reader. Smoke-tested in CI; not yet on PyPI. |

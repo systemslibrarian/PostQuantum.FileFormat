@@ -85,7 +85,7 @@ intentional tradeoff, or an open question. Each is labelled:
 
 ## How to reproduce the evidence
 
-Prerequisites: .NET 8/9/10 SDK; a Rust toolchain (`cargo`).
+Prerequisites: **.NET 10 SDK**; a Rust toolchain (`cargo`).
 
 ```bash
 # 1. .NET reference: build + full test suite
@@ -147,33 +147,35 @@ standard test vector is the only reliable way to catch this class of bug
 — is the kind of evidence that distinguishes a serious project from a
 self-confident one.
 
-## Dependency posture (owning the BouncyCastle reality)
+## Dependency posture (BCL native PQC; BouncyCastle as a leaf dep)
 
-The .NET reference implementation uses **BouncyCastle 2.6.2** (pinned exact
-in `src/.../PostQuantum.FileFormat.csproj`) as its source of ML-KEM-768 /
-ML-DSA-87 / Ed25519 / X25519 primitives on .NET 8 and .NET 9. On .NET 10+,
-`CryptoProvider.Detect()` switches to the BCL native
-`System.Security.Cryptography.MLKem` / `MLDsa` implementations; both code
-paths are kept in lock-step by `CryptoProviderParityTests`, which generates
-keys on one stack, encapsulates on the other, and asserts byte-identical
-shared secrets and signatures.
+The .NET reference implementation targets **net10.0** only. ML-KEM-768
+and ML-DSA-87 come from the native BCL types
+`System.Security.Cryptography.MLKem` and
+`System.Security.Cryptography.MLDsa` — compile-time references, no
+reflection bridge, no legacy fallback. On the production path PQ
+encap, decap, and sign all bottom out in platform crypto (Linux
+OpenSSL 3.5+ via libcrypto; Windows CNG on 11 / Server 2025).
 
-The honest version of "what this means for side channels": BouncyCastle's
-managed ML-KEM and ML-DSA are not written to be constant-time against
-power, EM, or microarchitectural attackers — they are written to be
-correct and portable. The wrapper code in this repo IS written to be
-constant-time over the recipient-trial loop (`AuthenticatedModeDecryptor.
-ResolveDek`) and over the hybrid-signature verification (`HybridSigner.
-Verify` uses bitwise `&` not short-circuit `&&`). What we control:
-constant-time wrappers; what we inherit: whatever the primitive provides.
+**BouncyCastle.Cryptography 2.6.2** (pinned exact in
+`src/.../PostQuantum.FileFormat.csproj`) stays as a dependency only
+because the BCL doesn't yet expose three pieces:
 
-For a 2026 archival file format this is the weakest remaining link, and we
-say so plainly. The `BclCryptoProvider` exists so that on platforms where
-the BCL provides hardware-backed constant-time primitives (.NET 10+
-on Windows Server 2025 / Windows 11, or Linux/macOS with OpenSSL 3.5+),
-those primitives are used in preference. See
-[`docs/SIDE-CHANNEL-POSTURE.md`](./SIDE-CHANNEL-POSTURE.md) for the full
-per-primitive breakdown.
+- X25519 (key gen + ECDH),
+- Ed25519 (sign + verify), and
+- FIPS 204 deterministic ML-DSA-87 signing (`rnd = 0`), which we use
+  for byte-deterministic test-vector regeneration only.
+
+None of these is on the harvest-now / decrypt-later attack surface;
+the PQ primitives are. PQF's wrapper code is also written to be
+constant-time over the recipient-trial loop
+(`AuthenticatedModeDecryptor.ResolveDek`) and over the
+hybrid-signature verification (`HybridSigner.Verify` uses bitwise `&`
+not short-circuit `&&`). What we control: wrapper-level leakage. What
+we inherit on the PQ path: platform crypto (the strongest practical
+posture available in May 2026). See
+[`docs/SIDE-CHANNEL-POSTURE.md`](./SIDE-CHANNEL-POSTURE.md) for the
+full per-primitive breakdown.
 
 We are **not** claiming PQF is hardened against side-channel attackers
 who can measure timing, power, or EM emanations on the decrypting host.

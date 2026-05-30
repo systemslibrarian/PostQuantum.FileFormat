@@ -1217,14 +1217,18 @@ implementations are not required to match these properties.*
 
 ### A.1 Platform requirements
 
-The reference implementation targets .NET 8+. On .NET 10 with Windows
-Server 2025 / Windows 11, or on Linux/macOS with OpenSSL 3.5+, ML-KEM and
-ML-DSA are provided by `System.Security.Cryptography`. On older platforms,
-BouncyCastle.Crypto is used as a fallback.
+The reference implementation targets **.NET 10** only. ML-KEM-768 and
+ML-DSA-87 are provided by the native BCL types
+`System.Security.Cryptography.MLKem` and `MLDsa`, which route through
+platform crypto on Windows Server 2025 / Windows 11 (CNG) and on
+Linux / macOS with OpenSSL 3.5+. BouncyCastle.Crypto 2.6.2 remains a
+dependency only for X25519, Ed25519, and the FIPS 204 deterministic
+ML-DSA signing path used for byte-deterministic test-vector
+regeneration. The earlier net8.0 reflection-based fallback for ML-KEM
+/ ML-DSA was removed in `0.6.0-preview.2`.
 
-Test vectors MUST be produced and verified on both paths to catch interop
-regressions between the native platform implementations and the BouncyCastle
-fallback.
+Test vectors MUST be produced and verified using the BCL native PQ
+primitives.
 
 ### A.2 API surface
 

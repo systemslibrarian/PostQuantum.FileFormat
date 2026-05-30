@@ -56,7 +56,7 @@ reference the section number in the title.
 
 ### Prerequisites
 
-- .NET 8 SDK (the build target). The packed CLI rolls forward to .NET 9 / 10
+- .NET 10 SDK (the only build target). The packed CLI requires the .NET 10 runtime
   at runtime via `<RollForward>Major</RollForward>`.
 - `bash` (for the smoke script).
 
@@ -78,7 +78,7 @@ refused. If `smoke.sh` fails locally, do not open a PR.
 
 - Unit tests must pass (`dotnet test`, all projects).
 - The smoke script must pass.
-- The packed CLI must `--help` and roundtrip on .NET 8, 9, and 10 runtimes.
+- The packed CLI must `--help` and roundtrip on the .NET 10 runtime.
 
 There is no formal style enforcement beyond the repo's existing analyzers.
 Match the surrounding code's tone.

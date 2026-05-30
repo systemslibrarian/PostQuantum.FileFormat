@@ -61,23 +61,31 @@ the AEAD.
 
 ## Cryptographic primitive providers
 
-ML-KEM-768, ML-DSA-87, Ed25519, and X25519 are supplied by
-**BouncyCastle.Cryptography 2.6.2** on the .NET 8 / .NET 9 target. On
-.NET 10+ runtimes, `CryptoProvider.Detect()` switches to the BCL native
-`System.Security.Cryptography.MLKem` and `MLDsa` types — those are
-hardware-backed where the platform provides it (Linux OpenSSL 3.5+,
-Windows CNG on 11 / Server 2025). For a 2026 post-quantum file format
-the BouncyCastle-on-.NET-8 path is the weakest remaining
-side-channel link, and we say so plainly: BC's managed ML-KEM and ML-DSA
-are written to be correct and portable, not constant-time against
-power, EM, or microarchitectural attackers. The wrapper code in this
-repo IS written to be constant-time over the recipient-trial loop and
-the hybrid-signature verification (`HybridSigner.Verify` uses bitwise
-`&` not short-circuit `&&`); we control wrapper-level leakage and we
-inherit whatever the underlying primitive provides. See
+ML-KEM-768 and ML-DSA-87 are supplied by the **native BCL types** —
+`System.Security.Cryptography.MLKem` and `MLDsa` — on .NET 10. The
+library targets `net10.0` only; the previous net8.0 reflection bridge
+was removed in favor of compile-time references to these types.
+`BclCryptoProvider` calls them directly, no reflection layer in
+between.
+
+**BouncyCastle.Cryptography 2.6.2 stays as a dependency** only for the
+primitives the BCL does not expose natively in .NET 10: X25519,
+Ed25519, and the FIPS 204 *deterministic* (`rnd = 0`) ML-DSA signing
+path used for byte-deterministic test-vector regeneration. PQ
+encapsulation and signing on the production path never touch BC.
+
+The honest version of "what this means for side channels": on the
+operations that matter most for harvest-now/decrypt-later attackers —
+ML-KEM-768 encap/decap and ML-DSA-87 sign/verify — PQF now inherits
+the strongest practical posture available, which is platform crypto
+(Linux OpenSSL 3.5+ via libcrypto; Windows CNG on 11 / Server 2025).
+The wrapper code in this repo IS also written to be constant-time
+over the recipient-trial loop and the hybrid-signature verification
+(`HybridSigner.Verify` uses bitwise `&` not short-circuit `&&`); we
+control wrapper-level leakage, and we inherit whatever the underlying
+primitive provides. See
 [`docs/SIDE-CHANNEL-POSTURE.md`](./SIDE-CHANNEL-POSTURE.md) for the
-per-primitive breakdown and the migration plan toward making the BCL
-native path the only supported path.
+per-primitive breakdown.
 
 ## Open questions
 

@@ -16,7 +16,7 @@ PQF is a specification and reference implementation for hybrid post-quantum encr
 
 ## Quick start
 
-Install the preview CLI as a [.NET global tool](https://learn.microsoft.com/dotnet/core/tools/global-tools) (requires the .NET 8, 9, or 10 runtime):
+Install the preview CLI as a [.NET global tool](https://learn.microsoft.com/dotnet/core/tools/global-tools) (requires the **.NET 10+ runtime** — the BCL native ML-KEM and ML-DSA APIs are mandatory):
 
 ```bash
 dotnet tool install --global PostQuantum.FileFormat.Cli --prerelease
@@ -73,7 +73,7 @@ To clean up: `cd ~ && rm -rf /tmp/pqf-demo`.
 ## What this project is
 
 - A **file format specification** ([spec/PQF-SPEC-v1.md](spec/PQF-SPEC-v1.md), draft v0.6.0).
-- A **reference implementation** in .NET 8 ([src/PostQuantum.FileFormat](src/PostQuantum.FileFormat)).
+- A **reference implementation** in .NET 10 ([src/PostQuantum.FileFormat](src/PostQuantum.FileFormat)).
 - A **command-line tool**, `pqf` ([cli/PostQuantum.FileFormat.Cli](cli/PostQuantum.FileFormat.Cli)).
 - A **deterministic-encoding, fail-closed parser** with no recovery paths.
 - A **test-vector and conformance model** ([tests/PostQuantum.FileFormat.TestVectors](tests/PostQuantum.FileFormat.TestVectors)) used to gate the implementation against the spec.
@@ -171,7 +171,7 @@ CODE_OF_CONDUCT.md               Contributor Covenant 2.1
 - **Authenticity:** present only when the file is signed. When signed, both Ed25519 and ML-DSA-87 must verify; either failure refuses the file.
 - **No anonymity guarantees.** PQF protects file contents at rest; it does not hide that a `.pqf` file exists, who the recipients are, or transport-layer metadata.
 - **Metadata is visible.** The header is unencrypted and includes algorithm IDs, recipient public-key material, signer public keys (when signed), `chunk_size`, and `created` timestamp. Treat it as visible.
-- **Side-channel posture is inherited from the underlying primitives.** The reference implementation is wired to verify before release and to run the recipient trial in constant time over recipient blocks. ML-KEM-768, ML-DSA-87, Ed25519, and X25519 are provided by [BouncyCastle for .NET](https://www.bouncycastle.org/csharp/) 2.6.2 on the .NET 8 / .NET 9 target, and BouncyCastle's managed code is written to be correct and portable, not constant-time against power, EM, or microarchitectural attackers. On .NET 10+ runtimes, `CryptoProvider.Detect()` switches to the native BCL `System.Security.Cryptography.MLKem` / `MLDsa` types, which are hardware-backed where the platform exposes them (Linux OpenSSL 3.5+, Windows CNG on 11 / Server 2025). For a 2026 archival format the BouncyCastle-on-.NET-8 path is the weakest remaining link, and we say so plainly. The full per-operation matrix — what the wrapper controls, what it inherits, and the migration plan toward making the native BCL path the only supported path — is documented in [docs/SIDE-CHANNEL-POSTURE.md](./docs/SIDE-CHANNEL-POSTURE.md).
+- **Side-channel posture is inherited from the underlying primitives.** The reference implementation is wired to verify before release and to run the recipient trial in constant time over recipient blocks. ML-KEM-768 and ML-DSA-87 are supplied by the native BCL types ([`System.Security.Cryptography.MLKem`](https://learn.microsoft.com/dotnet/api/system.security.cryptography.mlkem) and [`MLDsa`](https://learn.microsoft.com/dotnet/api/system.security.cryptography.mldsa)) on .NET 10, which are platform-backed (Linux OpenSSL 3.5+ via libcrypto; Windows CNG on 11 / Server 2025) and the strongest practical side-channel posture available today. BouncyCastle stays as a dependency only for X25519, Ed25519, and the FIPS 204 *deterministic* ML-DSA signing path used in byte-deterministic test-vector regeneration — none of which the BCL exposes natively yet. The full per-operation matrix — what the wrapper controls and what it inherits — is documented in [docs/SIDE-CHANNEL-POSTURE.md](./docs/SIDE-CHANNEL-POSTURE.md).
 - **Implementation correctness matters.** The format is fail-closed by design, but security still depends on a correct implementation of the spec, the underlying KEM/AEAD/signature primitives, and the host OS's randomness source.
 
 ## Conformance philosophy

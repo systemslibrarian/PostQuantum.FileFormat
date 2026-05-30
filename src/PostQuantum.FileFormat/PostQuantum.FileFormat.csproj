@@ -1,7 +1,18 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <!--
+      net10.0 only. The BCL native System.Security.Cryptography.MLKem /
+      MLDsa types (introduced in .NET 10) are now the only supported
+      source of ML-KEM-768 and ML-DSA-87 in this library. The previous
+      multi-target + reflection bridge was dropped because nobody is
+      shipping against net8.0 — keeping it would just preserve the
+      weakest side-channel link for no current consumer benefit.
+      BouncyCastle stays as a dependency only because it supplies
+      X25519, Ed25519, and the FIPS 204 deterministic-signing path,
+      which the BCL does not yet expose natively.
+    -->
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>

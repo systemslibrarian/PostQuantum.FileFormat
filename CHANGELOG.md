@@ -13,6 +13,23 @@ policy. Wire format changes are called out here under "Wire format."
 
 ## [0.6.0-preview.2] — 2026-05-30
 
+### Changed — build target
+
+- **Target framework: net8.0 → net10.0 only.** The library now requires
+  the .NET 10 SDK to build and the .NET 10 runtime to run. The previous
+  multi-target + reflection bridge that reached the BCL native PQ
+  primitives from a net8.0 build was removed: no consumer ships against
+  net8.0 yet, so the reflection layer was preserving the weakest
+  side-channel link for no current consumer benefit. ML-KEM-768 and
+  ML-DSA-87 are now sourced directly from
+  `System.Security.Cryptography.MLKem` / `MLDsa` via compile-time
+  references in `Crypto/BclCryptoProvider.cs`. BouncyCastle 2.6.2
+  stays as a dependency only for X25519, Ed25519, and the FIPS 204
+  deterministic ML-DSA signing path used in byte-deterministic test
+  vector regeneration. All consumer projects (`Cli`, `Cli.Tests`,
+  `Tests`, `Bench`, `Differential`, `Fuzz`, `Kat`, `TestVectors`)
+  bumped to `net10.0` to match.
+
 ### Fixed — interop-breaking, same-day follow-up to 0.6.0-preview.1
 
 - **X-Wing combiner label position corrected.** 0.6.0-preview.1 hashed
