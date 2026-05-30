@@ -1,6 +1,6 @@
 # PQF Implementation Checklist
 
-**Derived from:** `spec/PQF-SPEC-v1.md` v0.3.1
+**Derived from:** `spec/PQF-SPEC-v1.md` v0.6.0
 **Purpose:** Exhaustive list of normative requirements, organized by
 implementation surface. Every item traces back to a specific spec section.
 **Status:** Companion document. Not normative — the spec is authoritative.
@@ -30,7 +30,7 @@ review) which are tracked outside this implementation checklist.
 - 🟡 SHOULD / SHOULD NOT — strong guidance, deviate only with documented reason
 - ⚪ MAY — optional feature, conforming to implement or not
 
-Total normative statements in spec v0.3.1: 66 MUST/SHOULD items.
+Total normative statements in spec v0.6.0: 66 MUST/SHOULD items.
 
 ---
 
@@ -363,3 +363,4 @@ Ideally by the end of Phase 5, every box is checked or explicitly marked
 |---|---|---|
 | 0.1.0 | 2026-04-21 | Initial extraction from spec v0.3.1 |
 | 0.2.0 | 2026-04-22 | All implementation items checked after Phase 4/5 hardening; release-management gaps tracked separately in `docs/SPEC-CHECKLIST-REVIEW-2026-04-22.md`. |
+| 0.3.0 | 2026-05-30 | Re-derived against spec v0.6.0 (X-Wing combiner + ML-KEM-768). Combiner-specific items in §1 updated; signature domain separation from 0.5 preserved. |

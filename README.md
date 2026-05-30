@@ -9,7 +9,7 @@ PQF is a specification and reference implementation for hybrid post-quantum encr
 [![NuGet](https://img.shields.io/nuget/vpre/PostQuantum.FileFormat.Cli.svg?label=nuget%20%28pqf%29)](https://www.nuget.org/packages/PostQuantum.FileFormat.Cli/)
 [![Downloads](https://img.shields.io/nuget/dt/PostQuantum.FileFormat.Cli.svg)](https://www.nuget.org/packages/PostQuantum.FileFormat.Cli/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Spec: draft v0.4.0](https://img.shields.io/badge/spec-draft%20v0.4.0-orange.svg)](spec/PQF-SPEC-v1.md)
+[![Spec: draft v0.6.0](https://img.shields.io/badge/spec-draft%20v0.6.0-orange.svg)](spec/PQF-SPEC-v1.md)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/systemslibrarian/PostQuantum.FileFormat/badge)](https://securityscorecards.dev/viewer/?uri=github.com/systemslibrarian/PostQuantum.FileFormat)
 [![codecov](https://codecov.io/gh/systemslibrarian/PostQuantum.FileFormat/branch/main/graph/badge.svg)](https://codecov.io/gh/systemslibrarian/PostQuantum.FileFormat)
 [![REUSE compliant](https://img.shields.io/badge/REUSE-compliant-success.svg)](LICENSE)
@@ -31,7 +31,7 @@ pqf inspect  --in secret.pqf
 pqf decrypt  --in secret.pqf --out secret.dec.pdf --identity alice.key.json --mode authenticated
 ```
 
-> **Preview:** `pqf` is published as `0.4.0-preview.*`. The wire format is draft v0.4.0 (X-Wing + ML-KEM-768) and is **wire-incompatible** with v0.3.x previews. Files produced by previews are not guaranteed to be readable by `v1.0.0`.
+> **Preview:** `pqf` is published as `0.6.0-preview.*`. The wire format is draft v0.6.0 (X-Wing + ML-KEM-768) and is **wire-incompatible** with v0.5.x and v0.3.x previews. Files produced by previews are not guaranteed to be readable by `v1.0.0`.
 
 ## How to try it
 
@@ -72,7 +72,7 @@ To clean up: `cd ~ && rm -rf /tmp/pqf-demo`.
 
 ## What this project is
 
-- A **file format specification** ([spec/PQF-SPEC-v1.md](spec/PQF-SPEC-v1.md), draft v0.4.0).
+- A **file format specification** ([spec/PQF-SPEC-v1.md](spec/PQF-SPEC-v1.md), draft v0.6.0).
 - A **reference implementation** in .NET 8 ([src/PostQuantum.FileFormat](src/PostQuantum.FileFormat)).
 - A **command-line tool**, `pqf` ([cli/PostQuantum.FileFormat.Cli](cli/PostQuantum.FileFormat.Cli)).
 - A **deterministic-encoding, fail-closed parser** with no recovery paths.
@@ -140,7 +140,7 @@ The resulting `.pqf` file is a self-contained encrypted container: it bundles re
 
 ```
 spec/                            Format definition and design rationale
-  PQF-SPEC-v1.md                 Normative specification (v0.3.1 draft)
+  PQF-SPEC-v1.md                 Normative specification (v0.6.0 draft)
   PQF-DESIGN-RATIONALE-v1.md     Why the spec is what it is
   ietf/                          Internet-Draft skeleton (work in progress)
 src/PostQuantum.FileFormat/      Reference .NET implementation
@@ -227,14 +227,14 @@ every N — that's the design working.
 
 ## Status
 
-- **Status:** Experimental. Specification is at draft v0.3.1.
+- **Status:** Experimental. Specification is at draft v0.6.0.
 - **Not externally audited.** No independent cryptographic review has been performed.
 - **Not recommended for irreplaceable data.** The byte format is frozen only at v1.0.0; drafts may produce files that are not readable by the final release.
 - **Latest preview:** [`v0.4.0-preview.2`](https://github.com/systemslibrarian/PostQuantum.FileFormat/releases/tag/v0.4.0-preview.2) on `main`, published to NuGet as [`PostQuantum.FileFormat.Cli`](https://www.nuget.org/packages/PostQuantum.FileFormat.Cli).
 
 | Component | State |
 |---|---|
-| Specification | Draft v0.3.1 |
+| Specification | Draft v0.6.0 |
 | Reference implementation (.NET) | Phases 1–5 complete on `main`, CI green |
 | Test vectors | v1 set (positive + negative) committed; reproducibility gated on the unsigned subset |
 | CLI (`pqf`) | `keygen`, `encrypt`, `decrypt`, `inspect`, `fingerprint`; published as `0.4.0-preview.2` on NuGet.org |
@@ -264,7 +264,7 @@ optional extension, and the parser is fail-closed by construction.
 | Parser stance | Fail-closed, no recovery paths | Strict | Historically permissive | Strict | N/A (library, not a container) |
 | Multi-recipient in one file | Yes | Yes | Yes | No (per-key API) | No |
 | Streaming vs authenticated mode contract | Both, explicit non-silent failure signaling | Streaming | Streaming | API-level | API-level |
-| Spec frozen? | Draft v0.3.1 (v1.0.0 target) | Stable | Stable (RFC) | Stable (Google) | Stable |
+| Spec frozen? | Draft v0.6.0 (v1.0.0 target) | Stable | Stable (RFC) | Stable (Google) | Stable |
 | External cryptographic audit | Not yet (review wanted) | Multiple reviews | Decades of scrutiny | Google + audits | Multiple reviews |
 
 If you want a stable, audited classical format today, **age** is the right

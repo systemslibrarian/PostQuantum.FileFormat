@@ -1,7 +1,7 @@
 # PQF File Format — Specification, Version 1
 
 **Status:** DRAFT / EXPERIMENTAL — do not use to protect irreplaceable data.
-**Document version:** 0.4.0 (2026-05-30)
+**Document version:** 0.6.0 (2026-05-30)
 **Editor:** Paul Clark <paul@systemslibrarian.dev>
 **License:** MIT
 
@@ -11,19 +11,24 @@
 
 ## Change log
 
-**0.4.0 (2026-05-30)** — Hybrid KEM cut over from PQF's in-house
-HKDF-concatenate-then-extract combiner to **X-Wing**
-(draft-connolly-cfrg-xwing-kem). This is a wire-incompatible break from
-0.3.x and invalidates every previously published v1 test vector. Changes:
+**0.6.0 (2026-05-30)** — Hybrid KEM cut over from PQF's in-house
+HKDF-bind-then-extract combiner (`pqf1-bind-extract-v1`, the 0.5
+construction) to **X-Wing** (draft-connolly-cfrg-xwing-kem). This is a
+wire-incompatible break from 0.5 (and from 0.3.x); every previously
+published v1 test vector is invalidated. The bind-extract combiner that
+0.5 introduced — itself a hardening of the older `pqf1-concat-extract-v1`
+in response to review finding F2 — was still a PQF-author construction
+without external security proofs; 0.6 removes it entirely in favor of
+the standardized X-Wing combiner. Changes:
 
 - §2.1 KEM: ML-KEM-1024 → **ML-KEM-768** (Category 3). X-Wing is defined
   for ML-KEM-768; staying on -1024 would require a non-standard variant
   combiner and defeat the purpose of adopting X-Wing.
-- §2.4 Combiner: the PQF in-house `pqf1-concat-extract-v1` HKDF combiner
+- §2.4 Combiner: the PQF in-house `pqf1-bind-extract-v1` HKDF combiner
   is **removed**. KEM-level shared-secret derivation is now
   `SHA3-256( "\.//^\" || ss_M || ss_X || ct_X || pk_X )` exactly as
   specified by draft-connolly-cfrg-xwing-kem.
-- §4.2.1 `alg.combiner` exact-match value: `"pqf1-concat-extract-v1"`
+- §4.2.1 `alg.combiner` exact-match value: `"pqf1-bind-extract-v1"`
   → `"x-wing"`. `alg.kem` exact-match value:
   `"x25519+ml-kem-1024"` → `"x25519+ml-kem-768"`.
 - §4.2.2 `pqc_ct` byte-string size: 1568 → **1088** (ML-KEM-768 ciphertext).
@@ -39,6 +44,19 @@ HKDF-concatenate-then-extract combiner to **X-Wing**
 - File format version stays **v1** (magic `PQF1`, version uint16
   `0x0001`); only the alg-map exact-match values and the recipient
   byte-string sizes change. Pre-1.0.0 §10.4 freeze does not yet apply.
+- The 0.5 hardening that signed-file readers gained (signature domain
+  separation: `PQF1-header-sig-v1` / `PQF1-file-sig-v1`) is **preserved**
+  unchanged; only the KEM combiner is rebuilt.
+
+**0.5.0 (2026-05-30)** — Bind-extract combiner + signature domain
+separation. The combiner's HKDF-Extract IKM now folds `classical_epk`
+and `pqc_ct` alongside the two shared secrets, binding the KEK to the
+exact KEM transcript (`pqf1-concat-extract-v1` → `pqf1-bind-extract-v1`).
+Header and file signatures gained disjoint domain prefixes
+`PQF1-header-sig-v1` / `PQF1-file-sig-v1`. Wire layout unchanged;
+only the bytes fed to the KDF and signer changed. *Superseded by
+0.6.0 on the same day; the 0.5 combiner is the one 0.6 X-Wing
+deletes.*
 
 **0.3.1 (2026-04-21)** — Polishing pass following ChatGPT v0.3.0 review. Six
 tightening fixes, no design changes:
@@ -161,7 +179,7 @@ X25519 ephemeral public key, and the recipient's X25519 long-term public
 key (§2.4). The construction has IND-CCA proofs in the ROM and QROM
 (Barbosa et al., 2024).
 
-Implementations of v1 0.4.0 are wire-incompatible with v1 0.3.x.
+Implementations of v1 0.6.0 are wire-incompatible with v1 0.5.x and earlier.
 
 ### 2.2 Signatures
 

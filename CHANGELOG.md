@@ -11,15 +11,18 @@ policy. Wire format changes are called out here under "Wire format."
 
 ## [Unreleased]
 
+## [0.6.0-preview.1] — 2026-05-30
+
 ### Wire format — BREAKING
 
-- **KEM combiner switched from PQF's in-house HKDF-concatenate-then-extract
-  to X-Wing** (draft-connolly-cfrg-xwing-kem). This is a wire-incompatible
-  break from spec v0.3.x; files produced under v0.3.x cannot be decrypted
-  by v0.4.0+ readers, and vice versa. The file format version byte
-  (`PQF1` magic, uint16 `0x0001`) does not change — only the `alg` map
-  exact-match values and the recipient `pqc_ct` byte-string length.
-  - `alg.combiner`: `"pqf1-concat-extract-v1"` → `"x-wing"`.
+- **KEM combiner switched from PQF's in-house `pqf1-bind-extract-v1`
+  HKDF construction to X-Wing** (draft-connolly-cfrg-xwing-kem). This is
+  a wire-incompatible break from spec v0.5 (and from v0.3.x); files
+  produced under v0.5 or v0.3.x cannot be decrypted by v0.6.0+ readers,
+  and vice versa. The file format version byte (`PQF1` magic, uint16
+  `0x0001`) does not change — only the `alg` map exact-match values and
+  the recipient `pqc_ct` byte-string length.
+  - `alg.combiner`: `"pqf1-bind-extract-v1"` → `"x-wing"`.
   - `alg.kem`: `"x25519+ml-kem-1024"` → `"x25519+ml-kem-768"`.
   - PQC slot: ML-KEM-1024 (Category 5) → **ML-KEM-768** (Category 3),
     required by the X-Wing parameter set.
@@ -31,11 +34,26 @@ policy. Wire format changes are called out here under "Wire format."
     binding moves into the AEAD AAD.
   - The bespoke `HkdfCombiner.DeriveKek` is removed; the per-chunk
     HKDF expansion (`DeriveChunkKey`) is unchanged.
-  - All published v1 test vectors (TV-001..014 + TV-NEG-001..022) are
-    regenerated under the new format.
-- Spec doc version bumped to v0.4.0 (still pre-1.0.0 / EXPERIMENTAL).
+  - All published v1 test vectors are regenerated under the new format
+    (14 positive + 33 negative = 47 total; vector pack fingerprint
+    `sha256(SHA256SUMS) = a1fe99c8085f36d3438945c3143c2802439b4b16c7dee5fb23d1a53559ddc309`).
+- **Why this is not a 0.5.x point release.** The 0.5 hardening — folding
+  `classical_epk` and `pqc_ct` into the HKDF-Extract IKM — was itself a
+  PQF-author construction. External reviewers (ChatGPT, Grok) consistently
+  flagged "PQF maintaining its own KEM combiner" as the highest-leverage
+  remaining concern. X-Wing has IND-CCA proofs in ROM and QROM (Barbosa,
+  Boyen, Connolly, Schwabe, Stehlé, Strub, 2024); 0.6 removes the
+  combiner from PQF's trust budget entirely.
+- **Preserved from 0.5 unchanged:**
+  - Signature domain separation prefixes `PQF1-header-sig-v1` /
+    `PQF1-file-sig-v1` (spec §6.2).
+  - Per-chunk HKDF-Expand with `is_final` AAD binding (spec §5.2).
+  - All footer reconciliation and fail-closed refusal conditions.
+  - `PqfFileWriter.ReadAtLeastAsync` chunk-fill fix (F5 hardening).
+  - TV-NEG-023..033 header-schema refusal vectors.
+- Spec doc version: `0.5.0` → **`0.6.0`** (still pre-1.0.0 / EXPERIMENTAL).
   Motivation, exact construction, and a full changelog entry are in
-  `spec/PQF-SPEC-v1.md` §2.1, §2.4, §4.2, §7.1.
+  `spec/PQF-SPEC-v1.md` change log + §2.1, §2.4, §4.2, §7.1.
 
 ### Added
 
@@ -148,6 +166,7 @@ policy. Wire format changes are called out here under "Wire format."
 
 - Draft v0.3.1 (unchanged from internal Phase 4 release).
 
-[Unreleased]: https://github.com/systemslibrarian/PostQuantum.FileFormat/compare/v0.4.0-preview.2...HEAD
+[Unreleased]: https://github.com/systemslibrarian/PostQuantum.FileFormat/compare/v0.6.0-preview.1...HEAD
+[0.6.0-preview.1]: https://github.com/systemslibrarian/PostQuantum.FileFormat/releases/tag/v0.6.0-preview.1
 [0.4.0-preview.2]: https://github.com/systemslibrarian/PostQuantum.FileFormat/releases/tag/v0.4.0-preview.2
 [0.4.0-preview.1]: https://github.com/systemslibrarian/PostQuantum.FileFormat/releases/tag/v0.4.0-preview.1
