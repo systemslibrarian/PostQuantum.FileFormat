@@ -2,6 +2,64 @@
 
 One page, one target, one set of evidence. If you are reviewing PQF, start here.
 
+## Seeking external cryptographic review — call to action
+
+**PQF is actively seeking external cryptographic review** of the v0.6
+draft before it freezes for v1.0. The combiner itself (X-Wing) has
+external proofs; what doesn't yet have external eyes is the
+**assembly** — how PQF wires X-Wing into per-recipient AEAD wrapping,
+chunked AES-256-GCM, and the hybrid signature pair on top.
+
+**The specific questions I want a cryptographer to answer:**
+
+1. Does the DEK-wrap AEAD's AAD construction
+   (`aad = file_id (16) || recipient_index (uint32 BE)`) safely
+   compensate for X-Wing's lack of a salt slot? (Spec §2.4 / §8.5 /
+   §8.7; design rationale §4.2.)
+2. Is the hybrid signature domain separation
+   (`PQF1-header-sig-v1` / `PQF1-file-sig-v1` prefixes) sufficient to
+   make the header-signature and file-signature contexts disjoint
+   under the same hybrid key? (Spec §6.2; rationale §11.6.)
+3. Are the fail-closed conditions in §8.4 complete for the
+   X-Wing-era wire format? Anything we should add or strengthen?
+4. The "deniability semantics" claim in §8.8 — is the weak-deniability
+   property stated correctly, or have I described something I don't
+   actually have?
+
+**What a review would look like (rough scope):**
+
+- ~2–4 hours of reading: the spec (`spec/PQF-SPEC-v1.md`,
+  ~1,200 lines), the rationale doc (`spec/PQF-DESIGN-RATIONALE-v1.md`),
+  this packet, and the X-Wing draft KATs in
+  `tests/PostQuantum.FileFormat.Tests/Crypto/XWingKemTests.cs` +
+  `impl/rust/pqf-writer/tests/xwing_draft_kat.rs`.
+- The output I'm hoping for: a short write-up (an issue, a gist, an
+  email — whatever's easiest) saying "items 1–4 look correct / look
+  wrong / need clarification on X." Even "looked at it, no concerns
+  on the listed questions, didn't go deeper" is a useful signal.
+
+**Compensation:** I cannot pay; this is a solo open-source project.
+What I can offer in return: explicit credit in the spec acknowledgments
+section, an `Acked-by:` tag on the relevant commit, and a transparent
+"Reviewed by X on Y" line in this packet's history. If that's not
+enough, I understand entirely — please tell me anyway so I know to
+keep looking.
+
+**How to engage:**
+
+- **Non-sensitive feedback** (spec questions, naming, normative
+  language, scope clarifications): open a
+  [spec-review issue](https://github.com/systemslibrarian/PostQuantum.FileFormat/issues/new/choose),
+  or email <paul@systemslibrarian.dev>.
+- **Potentially exploitable findings:** please use GitHub's
+  [private security advisory channel](https://github.com/systemslibrarian/PostQuantum.FileFormat/security/advisories/new)
+  rather than a public issue. The 90-day coordinated-disclosure
+  default in [`MAINTAINERS.md`](../MAINTAINERS.md) applies.
+
+If you read this packet and decided not to engage, that's also useful
+information — feel free to drop a one-line "passed; here's why" via
+email. Silence is the hardest signal to act on.
+
 ## The frozen target
 
 | What | Value |
