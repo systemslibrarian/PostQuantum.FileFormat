@@ -158,12 +158,6 @@ stack.
 
 Some things are deliberately under-specified pending review:
 
-- **Domain separation of header vs file signatures.** Today both
-  hybrid signatures cover their own message and nothing else; the
-  spec doesn't require a distinct domain-separation prefix between
-  them. An attacker would have to recover a signing key to forge
-  either, so this is theoretical, but theoretical hardening is
-  cheap and the spec PR is welcome.
 - **Footer AEAD-binding on unsigned files.** Covered above.
 - **Constant-time recipient trial under adversarial recipient lists.**
   We documented our posture in [`SIDE-CHANNEL-POSTURE.md`](./SIDE-CHANNEL-POSTURE.md)

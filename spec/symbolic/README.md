@@ -21,9 +21,10 @@ is closer to "real" than prose claims.
 
 - [`pqf-combiner.spthy`](./pqf-combiner.spthy) — Tamarin model of the
   combiner. Captures: ephemeral X25519, ML-KEM encapsulation,
-  HKDF-Extract over the concatenation, AES-GCM wrap of the DEK under
-  the resulting KEK. The lemma `dek_secrecy_under_hybrid_assumption`
-  states the desired property.
+  HKDF-Extract over the bind-extract IKM (both shared secrets plus the
+  ML-KEM ciphertext and X25519 ephemeral public key), AES-GCM wrap of
+  the DEK under the resulting KEK. The lemma
+  `dek_secrecy_under_hybrid_assumption` states the desired property.
 - [`pqf-combiner.pv`](./pqf-combiner.pv) — Equivalent ProVerif applied
   pi calculus model for cross-checking. Same primitives, same property.
 
@@ -31,7 +32,8 @@ is closer to "real" than prose claims.
 
 In scope (this skeleton):
 
-- The KEM combiner: concatenated extract via HKDF.
+- The KEM combiner: bind-extract via HKDF (shared secrets concatenated
+  with the ML-KEM ciphertext and X25519 ephemeral public key).
 - DEK wrapping under the derived KEK.
 - A passive Dolev–Yao adversary with full network control.
 

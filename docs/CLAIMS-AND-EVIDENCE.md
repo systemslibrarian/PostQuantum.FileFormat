@@ -32,8 +32,10 @@ gap. "Gap" is what would be needed to upgrade a claim from
 | Claim | Assumption | Evidence | Gap |
 |---|---|---|---|
 | **Authentication requires BOTH Ed25519 and ML-DSA-87 to verify.** | Both halves are evaluated unconditionally. | `HybridSigner.Verify` uses bitwise `&` instead of short-circuit `&&` so both branches always run. Tested by `HybridSignerTests`. | None. |
-| **Header signature covers the full header bytes.** | Spec §6.2 normative. | Both reference impl and Rust reader compute the same hash; the differential gate catches divergence. | None. |
-| **File signature covers `file_id ‖ sha256(chunks) ‖ footer`.** | Spec §6.2 step 9. | Reader: `AuthenticatedModeDecryptor` and `StreamingModeDecryptor`. Writer: `PqfFileWriter`, Rust `encrypt_to_bytes_signed`. Cross-impl differential gate. | The composition is one of the spec's open review questions (`PQF-DESIGN-RATIONALE-v1.md` §11). |
+| **Header signature covers `"PQF1-header-sig-v1" ‖ header_bytes`.** | Spec §6.2 normative. | Both reference impl and Rust reader compute the same hash; the differential gate catches divergence. | None. |
+| **File signature covers `"PQF1-file-sig-v1" ‖ file_id ‖ sha256(chunks) ‖ footer`.** | Spec §6.2 step 9. | Reader: `AuthenticatedModeDecryptor` and `StreamingModeDecryptor`. Writer: `PqfFileWriter`, Rust `encrypt_to_bytes_signed`. Cross-impl differential gate. | None. |
+| **A header signature cannot be replayed as a file signature (or vice versa).** | Distinct domain-separation prefixes per spec §6.2 (draft 0.5). | `HybridSigner.Sign/Verify` domain param; `HybridSignerTests.Verify_fails_when_domain_differs`. | None. |
+| **The KEK is bound to the exact KEM ciphertext and ephemeral.** | Bind-extract combiner folds `classical_epk ‖ pqc_ct` into HKDF-Extract IKM (spec §2.4, draft 0.5). | `Crypto/HkdfCombiner.cs`; Rust `reader.rs`/`lib.rs`; `HkdfCombinerTests` asserts the KEK changes when ct/epk change. | Not a published proof; symbolic model is research-level. |
 | **Signed file regeneration is byte-deterministic.** | FIPS 204 deterministic-signing variant + RFC 8032 Ed25519. | `MlDsa87SignDeterministic` on `ICryptoProvider`. Test-vector regen + `git diff --exit-code` in CI. | None. |
 
 ## Implementation correctness

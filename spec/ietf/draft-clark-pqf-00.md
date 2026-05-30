@@ -190,14 +190,17 @@ A conforming reader MUST implement at least one of:
 
 The author specifically solicits review on:
 
-1. Hybrid KEM combiner construction (HKDF salt/IKM layout, label binding).
+1. Hybrid KEM combiner construction. As of draft 0.5 the HKDF-Extract IKM
+   binds the full KEM transcript (`ss_x25519 || ss_mlkem || classical_epk ||
+   pqc_ct`); review of this bind-extract layout is welcome.
 2. Per-chunk AEAD construction and AAD binding.
 3. File-signature coverage composition.
 4. ML-KEM implicit-rejection timing and recipient-trial constant-time
    posture.
 5. Whether the footer should be AEAD-bound on unsigned files.
-6. Whether header-signature and file-signature messages should carry
-   distinct domain-separation prefixes.
+
+The signature domain-separation question (distinct
+`PQF1-header-sig-v1` / `PQF1-file-sig-v1` prefixes) was resolved in draft 0.5.
 
 # Security considerations
 

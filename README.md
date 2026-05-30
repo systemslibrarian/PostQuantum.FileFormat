@@ -307,7 +307,7 @@ PQF is explicitly seeking review from cryptographers and post-quantum implemente
 - **§6.3 step 7** — ML-KEM implicit-rejection timing and recipient-trial constant-time posture.
 - **§6.4** — Authenticated vs Streaming Mode failure-signaling contract.
 
-A running list of spec-level questions the author would value review on — including the open question of whether header-signature and file-signature messages should carry distinct domain-separation prefixes (§6.2), and whether the footer should be AEAD-bound on unsigned files — lives in [`spec/PQF-DESIGN-RATIONALE-v1.md` §11](./spec/PQF-DESIGN-RATIONALE-v1.md#11-open-questions-the-author-acknowledges).
+A running list of spec-level questions the author would value review on — such as whether the footer should be AEAD-bound on unsigned files, and a machine-checked proof of the combiner assembly — lives in [`spec/PQF-DESIGN-RATIONALE-v1.md` §11](./spec/PQF-DESIGN-RATIONALE-v1.md#11-open-questions-the-author-acknowledges). (The combiner ciphertext-binding and signature domain-separation questions were **resolved in draft 0.5**.)
 
 If you find an issue, please open a [GitHub Issue](https://github.com/systemslibrarian/PostQuantum.FileFormat/issues) or start a thread under [Discussions](https://github.com/systemslibrarian/PostQuantum.FileFormat/discussions). Reproducible refusal cases are especially welcome and will be folded into the negative test-vector set.
 
