@@ -26,3 +26,5 @@ Writing the spec and the first implementation simultaneously in .NET creates a r
 ### 5. Resolving the "Open Questions"
 The design rationale explicitly lists unresolved questions, like whether to add explicit `"PQF1-header-sig-v1"` domain separation prefixes and whether the footer should be AEAD-bound on unsigned files.
 **Next Step:** These are fantastic questions, but they represent wire-format changes. The project should force a decision on these (adopting both for strictness is recommended) before locking in `v1.0.0` to avoid needing a `PQF2` magic byte in the near future.
+
+> **Editor's note (2026-05-30):** The signature domain-separation recommendation was adopted in draft 0.5 — header and file signatures now carry `PQF1-header-sig-v1` / `PQF1-file-sig-v1` prefixes (spec §6.2). The combiner was also hardened to bind the KEM ciphertext and ephemeral key (`pqf1-bind-extract-v1`, spec §2.4). The footer-AEAD-on-unsigned-files question remains open. This file is retained as a dated record of the review; current state lives in the spec and `docs/REVIEWER-PACKET.md`.
