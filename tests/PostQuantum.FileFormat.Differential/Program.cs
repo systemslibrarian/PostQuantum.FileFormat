@@ -35,7 +35,9 @@ internal static class Program
         {
             switch (args[i])
             {
-                case "--seed": seed = int.Parse(args[++i]); break;
+                // Parse as long then wrap into int range: CI passes
+                // --seed $GITHUB_RUN_ID, an 11-digit value that overflows Int32.
+                case "--seed": seed = unchecked((int)long.Parse(args[++i])); break;
                 case "--count": count = int.Parse(args[++i]); break;
                 case "--out": outDir = args[++i]; break;
                 default:
