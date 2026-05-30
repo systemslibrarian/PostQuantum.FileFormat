@@ -146,7 +146,7 @@ scope.
 PQF uses ML-KEM-768 (FIPS 203) and ML-DSA-87 (FIPS 204), both
 standardized by NIST in 2024, combined via X-Wing
 (draft-connolly-cfrg-xwing-kem). PQF does not invent new primitives,
-and as of spec v0.4.0 does not maintain its own KEM combiner — X-Wing
+and as of spec v0.6.0 does not maintain its own KEM combiner — X-Wing
 is the standardized hybrid construction with external IND-CCA proofs
 in ROM/QROM. The contribution is the wire format around it.
 

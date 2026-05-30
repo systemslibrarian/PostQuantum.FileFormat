@@ -117,6 +117,36 @@ CI runs all four on every push (`ci.yml`, `differential.yml`,
   "reader-only interop" gap; a fully clean-room third-party implementation
   remains desirable.
 
+## X-Wing combiner — KAT validation against the IETF draft
+
+Both implementations are independently validated against the X-Wing IETF
+draft's published test vector (draft-connolly-cfrg-xwing-kem,
+Appendix C, example 1).
+
+| Side | Test | What it proves |
+|---|---|---|
+| Rust | `impl/rust/pqf-writer/tests/xwing_draft_kat.rs` | Full deterministic encap path: draft `(pk, eseed) → (ct, ss)` byte-for-byte using `ml-kem` 0.2 (with the `deterministic` feature) + `x25519-dalek` + `sha3`. |
+| C# | `XWingKemTests.XWingCombiner_MatchesPublishedDraftVector` | The SHA3-256 combiner step: pinned `(ss_M, ss_X, ct_X, pk_X)` from the Rust KAT → `XWingKem.ComputeCombiner` reproduces the draft's `ss = d2df0522…e384` byte-for-byte. |
+
+Neither test relies on the other transitively. If either implementation's
+combiner formula drifts (label position, byte order, label bytes, hash
+function), the corresponding KAT fails loudly with a specific error message
+naming the four possible causes. Both `ct_X` and `pk_X` in the C# fixture
+are independently verifiable against the draft (last 32 bytes of the
+published `ct` (1120 bytes) and `pk` (1216 bytes) respectively), so the
+chain of custody is auditable without rerunning the Rust KAT.
+
+**Why this matters.** When this KAT pair was first written, it immediately
+caught a real bug: the X-Wing combiner label was prepended rather than
+appended to the SHA3-256 input — a discrepancy that **every** existing
+self-consistency / round-trip test had silently passed under because both
+encap and decap used the same wrong formula. That fix shipped as
+`0.6.0-preview.2`. The lesson — self-consistency tests are necessary but
+not sufficient for cryptographic interop, and a KAT against a published
+standard test vector is the only reliable way to catch this class of bug
+— is the kind of evidence that distinguishes a serious project from a
+self-confident one.
+
 ## Dependency posture (owning the BouncyCastle reality)
 
 The .NET reference implementation uses **BouncyCastle 2.6.2** (pinned exact

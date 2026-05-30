@@ -45,7 +45,7 @@ normative:
 informative:
   PQF-SPEC:
     target: https://github.com/systemslibrarian/PostQuantum.FileFormat/blob/main/spec/PQF-SPEC-v1.md
-    title: "PQF Wire Format Specification (draft v0.3.1)"
+    title: "PQF Wire Format Specification (draft v0.6.0)"
     author:
       ins: P. Clark
     date: 2026

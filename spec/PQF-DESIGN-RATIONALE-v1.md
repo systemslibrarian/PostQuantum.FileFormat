@@ -99,7 +99,7 @@ ML-KEM-768; using ML-KEM-1024 would have required a non-standard
 variant of the combiner and reintroduced exactly the "Paul's special
 sauce" problem we were trying to remove.
 
-The 0.4.0 rewrite makes the trade explicit:
+The 0.6.0 rewrite makes the trade explicit:
 
 - Lose: ML-KEM-1024's Category 5 margin (AES-256-equivalent) — drop to
   Category 3 (AES-192-equivalent).
@@ -273,7 +273,7 @@ multi-recipient, the sender encrypts once.
 
 ### 4.2 Per-recipient KEK with `file_id`/`recipient_index` bound in AEAD AAD
 
-Under 0.4.0's X-Wing combiner, the KEK is intrinsically per-recipient:
+Under 0.6.0's X-Wing combiner, the KEK is intrinsically per-recipient:
 the combiner input includes the recipient's X25519 long-term public key
 (`pk_X`), so two recipients on the same file derive structurally
 different KEKs from the same plaintext shared-secret pair.

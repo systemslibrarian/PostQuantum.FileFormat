@@ -5,7 +5,7 @@ deciding whether to adopt PQF, and what to expect across versions.
 
 ## TL;DR
 
-- The wire format is currently **draft v0.5**. It may change before v1.0.0.
+- The wire format is currently **draft v0.6.0** (X-Wing + ML-KEM-768; shipped as `v0.6.0-preview.2`). It may change before v1.0.0.
 - Once **v1.0.0** is published, the wire format is frozen. Every v1.x reader
   reads every v1.x file, forever.
 - Pre-v1.0.0 files are not guaranteed to be readable by v1.0.0.

@@ -59,13 +59,28 @@ associated data: `aad = file_id (16) || recipient_index (uint32 BE)`.
 Cross-recipient and cross-file isolation are preserved one layer down at
 the AEAD.
 
+## Cryptographic primitive providers
+
+ML-KEM-768, ML-DSA-87, Ed25519, and X25519 are supplied by
+**BouncyCastle.Cryptography 2.6.2** on the .NET 8 / .NET 9 target. On
+.NET 10+ runtimes, `CryptoProvider.Detect()` switches to the BCL native
+`System.Security.Cryptography.MLKem` and `MLDsa` types — those are
+hardware-backed where the platform provides it (Linux OpenSSL 3.5+,
+Windows CNG on 11 / Server 2025). For a 2026 post-quantum file format
+the BouncyCastle-on-.NET-8 path is the weakest remaining
+side-channel link, and we say so plainly: BC's managed ML-KEM and ML-DSA
+are written to be correct and portable, not constant-time against
+power, EM, or microarchitectural attackers. The wrapper code in this
+repo IS written to be constant-time over the recipient-trial loop and
+the hybrid-signature verification (`HybridSigner.Verify` uses bitwise
+`&` not short-circuit `&&`); we control wrapper-level leakage and we
+inherit whatever the underlying primitive provides. See
+[`docs/SIDE-CHANNEL-POSTURE.md`](./SIDE-CHANNEL-POSTURE.md) for the
+per-primitive breakdown and the migration plan toward making the BCL
+native path the only supported path.
+
 ## Open questions
 
-- KAT validation of the X-Wing combiner against the
-  draft-connolly-cfrg-xwing-kem published appendix test vector
-  (`XWingKemTests` currently pins the byte-correct label and exercises
-  binding properties in self-consistency; cross-draft KAT is the next test to
-  land).
 - Streaming post-hoc failure ergonomics and API contracts: see rationale
   question 3.
 - Unsigned-file footer/truncation edge (whole-payload erasure to empty): see
@@ -78,6 +93,13 @@ the AEAD.
 
 ## Closed since earlier drafts
 
+- **X-Wing draft KAT validation** (closes "is the combiner byte-correct
+  against the standard?"): resolved in `0.6.0-preview.2` — both Rust
+  (`impl/rust/pqf-writer/tests/xwing_draft_kat.rs`) and .NET
+  (`XWingKemTests.XWingCombiner_MatchesPublishedDraftVector`) validate
+  the combiner against the draft Appendix C example 1 byte-for-byte.
+  This KAT immediately caught a real bug (label position) in
+  `0.6.0-preview.1`.
 - **X-Wing transition** (closes "PQF maintaining its own KEM combiner"):
   resolved in draft 0.6 — the in-house combiner is gone; the standardized
   X-Wing combiner replaces it byte-for-byte per
