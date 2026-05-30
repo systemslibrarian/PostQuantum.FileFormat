@@ -313,6 +313,7 @@ If you find an issue, please open a [GitHub Issue](https://github.com/systemslib
 
 ## Where to go next
 
+- [`docs/REVIEWER-PACKET.md`](./docs/REVIEWER-PACKET.md) — **start here if you are reviewing PQF.** One frozen target, the disposition of every v1 protocol debt, and the exact commands to reproduce all conformance evidence.
 - [`spec/PQF-SPEC-v1.md`](./spec/PQF-SPEC-v1.md) — the authoritative format specification and conformance rules.
 - [`spec/PQF-DESIGN-RATIONALE-v1.md`](./spec/PQF-DESIGN-RATIONALE-v1.md) — why the spec is what it is; recommended reading before reviewing the format.
 - [`spec/ietf/draft-clark-pqf-00.md`](./spec/ietf/draft-clark-pqf-00.md) — kramdown-rfc Internet-Draft skeleton, work in progress.
