@@ -16,7 +16,10 @@
 //!     identity = pqf.Identity.from_manifest("id-a", pub_b64, x25519_b64, mlkem_b64)
 //!     plaintext = pqf.decrypt(open("a.pqf","rb").read(), identity)
 
-use pqf_reader::{decrypt as rust_decrypt, parse as rust_parse, Identity as RustIdentity};
+use pqf_reader::{
+    decrypt as rust_decrypt, parse as rust_parse, Identity as RustIdentity, ALG_AEAD, ALG_COMBINER,
+    ALG_KDF, ALG_KEM, ALG_SIG,
+};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList};
@@ -51,12 +54,15 @@ fn parse_header<'py>(py: Python<'py>, file_bytes: &[u8]) -> PyResult<&'py PyDict
     let h = &parsed.header;
     let out = PyDict::new(py);
 
+    // A parsed header is guaranteed to carry exactly the v1 algorithm
+    // identifiers (the reader refuses anything else), so report them from the
+    // reader's canonical constants rather than re-reading the header.
     let alg = PyDict::new(py);
-    alg.set_item("aead", &h.alg.aead)?;
-    alg.set_item("combiner", &h.alg.combiner)?;
-    alg.set_item("kdf", &h.alg.kdf)?;
-    alg.set_item("kem", &h.alg.kem)?;
-    alg.set_item("sig", &h.alg.sig)?;
+    alg.set_item("aead", ALG_AEAD)?;
+    alg.set_item("combiner", ALG_COMBINER)?;
+    alg.set_item("kdf", ALG_KDF)?;
+    alg.set_item("kem", ALG_KEM)?;
+    alg.set_item("sig", ALG_SIG)?;
     out.set_item("alg", alg)?;
 
     out.set_item("chunk_size", h.chunk_size)?;
@@ -71,8 +77,8 @@ fn parse_header<'py>(py: Python<'py>, file_bytes: &[u8]) -> PyResult<&'py PyDict
 
     if let Some(signer) = &h.signer {
         let s = PyDict::new(py);
-        s.set_item("classical_pub", PyBytes::new(py, &signer.classical_pub))?;
-        s.set_item("pqc_pub", PyBytes::new(py, &signer.pqc_pub))?;
+        s.set_item("classical_pub", PyBytes::new(py, &signer.ed25519_pub))?;
+        s.set_item("pqc_pub", PyBytes::new(py, &signer.mldsa87_pub))?;
         out.set_item("signer", s)?;
     } else {
         out.set_item("signer", py.None())?;

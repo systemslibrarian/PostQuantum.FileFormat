@@ -13,5 +13,7 @@ crate-type = ["cdylib"]
 path = "src/lib.rs"
 
 [dependencies]
-pyo3 = { version = "0.22", features = ["extension-module", "abi3-py38"] }
+# gil-refs re-enables the deprecated &PyDict / &PyBytes GIL-ref API this
+# binding is written against (PyDict::new, PyBytes::new, &'py PyDict returns).
+pyo3 = { version = "0.22", features = ["extension-module", "abi3-py38", "gil-refs"] }
 pqf-reader = { path = "../../impl/rust/pqf-reader" }

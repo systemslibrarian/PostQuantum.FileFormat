@@ -7,7 +7,7 @@ name = "pqf"
 version = "0.1.0"
 description = "Python bindings for the PQF (PostQuantum.FileFormat) Rust reader"
 requires-python = ">=3.8"
-license = { file = "../../LICENSE" }
+license = "MIT"
 authors = [
     { name = "Paul Clark", email = "systemslibrarian@gmail.com" }
 ]
@@ -15,7 +15,6 @@ keywords = ["post-quantum", "cryptography", "file-format", "hybrid", "ml-kem", "
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Rust",
     "Topic :: Security :: Cryptography",

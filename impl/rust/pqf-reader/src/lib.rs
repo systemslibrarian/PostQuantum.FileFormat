@@ -24,6 +24,8 @@ pub mod identity;
 pub mod reader;
 
 pub use error::{PqfError, RefusalReason, Result};
-pub use header::{Header, RecipientEntry, SignerEntry};
+pub use header::{
+    Header, RecipientEntry, SignerEntry, ALG_AEAD, ALG_COMBINER, ALG_KDF, ALG_KEM, ALG_SIG,
+};
 pub use identity::Identity;
 pub use reader::{decrypt, parse, ParsedFile};

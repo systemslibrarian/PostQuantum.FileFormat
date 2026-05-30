@@ -7,7 +7,10 @@
 //! payload. See demo/index.html for a minimal "paste a file, see the
 //! header" page that loads them directly.
 
-use pqf_reader::{decrypt as rust_decrypt, parse as rust_parse, Identity as RustIdentity};
+use pqf_reader::{
+    decrypt as rust_decrypt, parse as rust_parse, Identity as RustIdentity, ALG_AEAD, ALG_COMBINER,
+    ALG_KDF, ALG_KEM, ALG_SIG,
+};
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
@@ -46,14 +49,17 @@ pub fn parse_header(file_bytes: &[u8]) -> Result<JsValue, JsError> {
     let parsed = rust_parse(file_bytes).map_err(map_err)?;
     let h = &parsed.header;
     let js = HeaderJs {
+        // A parsed header is guaranteed to carry exactly the v1 algorithm
+        // identifiers (the reader refuses anything else), so report them from
+        // the reader's canonical constants rather than re-reading the header.
         alg: AlgJs {
-            aead: h.alg.aead.clone(),
-            combiner: h.alg.combiner.clone(),
-            kdf: h.alg.kdf.clone(),
-            kem: h.alg.kem.clone(),
-            sig: h.alg.sig.clone(),
+            aead: ALG_AEAD.to_string(),
+            combiner: ALG_COMBINER.to_string(),
+            kdf: ALG_KDF.to_string(),
+            kem: ALG_KEM.to_string(),
+            sig: ALG_SIG.to_string(),
         },
-        chunk_size: h.chunk_size,
+        chunk_size: h.chunk_size as u32,
         created: h.created.clone(),
         file_id_hex: hex_lower(&h.file_id),
         recipient_count: h.recipients.len(),

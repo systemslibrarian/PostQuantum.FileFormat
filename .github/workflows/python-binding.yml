@@ -46,17 +46,16 @@ jobs:
             impl/rust/pqf-reader/target
           key: ${{ runner.os }}-py${{ matrix.python }}-cargo-${{ hashFiles('bindings/python/Cargo.toml', 'impl/rust/pqf-reader/Cargo.toml') }}
 
-      - name: Install maturin
-        run: pip install --upgrade pip maturin
-
-      - name: Build + install the binding into the venv
-        working-directory: bindings/python
-        run: maturin develop --release
-
-      - name: Smoke test (import + parse a vector)
+      - name: Build binding + smoke test (in a venv)
         working-directory: bindings/python
         shell: bash
         run: |
+          # maturin develop requires an active virtualenv; create and activate
+          # one (cross-platform: bin/ on unix, Scripts/ on windows runners).
+          python -m venv .venv
+          if [ -f .venv/bin/activate ]; then source .venv/bin/activate; else source .venv/Scripts/activate; fi
+          python -m pip install --upgrade pip maturin
+          maturin develop --release
           python - <<'PY'
           import pqf, json, pathlib
           repo = pathlib.Path("../..").resolve()
@@ -65,7 +64,7 @@ jobs:
           blob = path.read_bytes()
           header = pqf.parse_header(blob)
           assert header["alg"]["kem"] == "x25519+ml-kem-1024", header
-          assert header["alg"]["combiner"] == "pqf1-concat-extract-v1"
+          assert header["alg"]["combiner"] == "pqf1-bind-extract-v1"
           assert len(header["recipients"]) >= 1
           print("OK: pqf.parse_header round-trips on TV-001")
 

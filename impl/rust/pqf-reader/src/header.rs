@@ -21,12 +21,23 @@ const KNOWN_TOP_FIELDS: &[&str] = &[
     "signer",
 ];
 
+// The exact algorithm identifiers a conformant PQF v1 header carries. A
+// successfully parsed `Header` is guaranteed to match these (the parser refuses
+// any other values), so consumers that want to display the algorithm suite can
+// rely on these constants instead of re-deriving — and stay in sync if the
+// suite ever changes. Exposed via the crate root.
+pub const ALG_AEAD: &str = "aes-256-gcm-chunked";
+pub const ALG_COMBINER: &str = "pqf1-bind-extract-v1";
+pub const ALG_KDF: &str = "hkdf-sha256";
+pub const ALG_KEM: &str = "x25519+ml-kem-1024";
+pub const ALG_SIG: &str = "ed25519+ml-dsa-87";
+
 const ALG_REQUIRED: &[(&str, &str)] = &[
-    ("aead", "aes-256-gcm-chunked"),
-    ("combiner", "pqf1-bind-extract-v1"),
-    ("kdf", "hkdf-sha256"),
-    ("kem", "x25519+ml-kem-1024"),
-    ("sig", "ed25519+ml-dsa-87"),
+    ("aead", ALG_AEAD),
+    ("combiner", ALG_COMBINER),
+    ("kdf", ALG_KDF),
+    ("kem", ALG_KEM),
+    ("sig", ALG_SIG),
 ];
 
 const RECIPIENT_FIELDS: &[&str] = &["classical_epk", "pqc_ct", "wrapped_dek", "wrapped_dek_nonce"];
