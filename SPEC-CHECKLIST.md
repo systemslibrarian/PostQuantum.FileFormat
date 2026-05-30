@@ -1,6 +1,6 @@
 # PQF Implementation Checklist
 
-**Derived from:** `spec/PQF-SPEC-v1.md` v0.4
+**Derived from:** `spec/PQF-SPEC-v1.md` v0.5
 **Purpose:** Exhaustive list of normative requirements, organized by
 implementation surface. Every item traces back to a specific spec section.
 **Status:** Companion document. Not normative — the spec is authoritative.
@@ -30,7 +30,7 @@ review) which are tracked outside this implementation checklist.
 - 🟡 SHOULD / SHOULD NOT — strong guidance, deviate only with documented reason
 - ⚪ MAY — optional feature, conforming to implement or not
 
-Total normative statements in spec v0.4: 66 MUST/SHOULD items.
+Total normative statements in spec v0.5: 66 MUST/SHOULD items.
 
 ---
 
@@ -65,7 +65,7 @@ Total normative statements in spec v0.4: 66 MUST/SHOULD items.
 
 - [x] 🔴 `alg` present; exact map structure (§4.2.1)
 - [x] 🔴 `alg.aead` equals `"aes-256-gcm-chunked"` exactly (§4.2.1)
-- [x] 🔴 `alg.combiner` equals `"pqf1-concat-extract-v1"` exactly (§4.2.1)
+- [x] 🔴 `alg.combiner` equals `"pqf1-bind-extract-v1"` exactly (§4.2.1)
 - [x] 🔴 `alg.kdf` equals `"hkdf-sha256"` exactly (§4.2.1)
 - [x] 🔴 `alg.kem` equals `"x25519+ml-kem-1024"` exactly (§4.2.1)
 - [x] 🔴 `alg.sig` equals `"ed25519+ml-dsa-87"` exactly (§4.2.1)
@@ -153,7 +153,7 @@ Total normative statements in spec v0.4: 66 MUST/SHOULD items.
 
 - [x] 🔴 `combined_ss = HKDF-Extract(salt, ikm)` where salt and ikm are exactly as specified (§2.4)
 - [x] 🔴 Salt = `"PQF1-combiner-v1" (16 bytes) || file_id (16 bytes) || recipient_index (4 bytes BE)` (§2.4)
-- [x] 🔴 IKM = `x25519_shared_secret (32 bytes) || mlkem_shared_secret (32 bytes)` (§2.4)
+- [x] 🔴 IKM = `x25519_shared_secret (32) || mlkem_shared_secret (32) || classical_epk (32) || pqc_ct (1568)` — bind-extract combiner (§2.4)
 - [x] 🔴 `kek = HKDF-Expand(combined_ss, info = "PQF1-kek-v1", L = 32)` (§2.4)
 
 ---
@@ -169,12 +169,12 @@ Total normative statements in spec v0.4: 66 MUST/SHOULD items.
 - [x] 🔴 Generate random 12-byte wrap_nonce per recipient (§6.2 step 3e)
 - [x] 🔴 `wrapped_dek = AES-256-GCM-Encrypt(KEK, wrap_nonce, DEK, aad = file_id)` (§6.2 step 3f)
 - [x] 🔴 Header encoded as deterministic CBOR (§6.2 step 4)
-- [x] 🔴 If signed: `ed25519_sig = Ed25519.Sign(S.ed25519_sk, header_bytes)` (§6.2 step 5a)
-- [x] 🔴 If signed: `mldsa_sig = ML-DSA-87.Sign(S.mldsa_sk, header_bytes)` (§6.2 step 5b)
+- [x] 🔴 If signed: header signed over `"PQF1-header-sig-v1" || header_bytes`; `ed25519_sig = Ed25519.Sign(S.ed25519_sk, header_sig_msg)` (§6.2 step 5a)
+- [x] 🔴 If signed: `mldsa_sig = ML-DSA-87.Sign(S.mldsa_sk, header_sig_msg)` (§6.2 step 5b)
 - [x] 🔴 If signed: `header_signature = ed25519_sig (64) || mldsa_sig (4627)` = 4691 bytes (§6.2 step 5c)
 - [x] 🔴 Running SHA-256 computed over on-disk chunk bytes in write order (§6.2 step 7)
 - [x] 🔴 Footer written with accurate chunk_count and plaintext_bytes (§6.2 step 8)
-- [x] 🔴 If signed: file_signature covers `file_id (16) || sha256_of_chunks (32) || footer (20)` = 4691 bytes hybrid signature (§6.2 step 9)
+- [x] 🔴 If signed: file_signature covers `"PQF1-file-sig-v1" || file_id (16) || sha256_of_chunks (32) || footer (20)` = 4691 bytes hybrid signature (§6.2 step 9)
 
 ---
 

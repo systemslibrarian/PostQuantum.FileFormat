@@ -136,7 +136,7 @@ fn write_alg_map(buf: &mut Vec<u8>) {
     write_text(buf, "aead");
     write_text(buf, "aes-256-gcm-chunked");
     write_text(buf, "combiner");
-    write_text(buf, "pqf1-concat-extract-v1");
+    write_text(buf, "pqf1-bind-extract-v1");
 }
 
 fn write_signer_map(buf: &mut Vec<u8>, s: &SignerMaterial) {

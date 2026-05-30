@@ -51,7 +51,7 @@ public sealed class HappyPath_ValidationTests
         var alg = CborValue.Map(new List<KeyValuePair<CborValue, CborValue>>
         {
             new(CborValue.Text("aead"), CborValue.Text("aes-256-gcm-chunked")),
-            new(CborValue.Text("combiner"), CborValue.Text("pqf1-concat-extract-v1")),
+            new(CborValue.Text("combiner"), CborValue.Text("pqf1-bind-extract-v1")),
             new(CborValue.Text("kdf"), CborValue.Text("hkdf-sha256")),
             new(CborValue.Text("kem"), CborValue.Text("x25519+ml-kem-1024")),
             new(CborValue.Text("sig"), CborValue.Text("ed25519+ml-dsa-87")),
@@ -80,7 +80,7 @@ public sealed class HappyPath_ValidationTests
         var alg = CborValue.Map(new List<KeyValuePair<CborValue, CborValue>>
         {
             new(CborValue.Text("aead"), CborValue.Text("aes-256-gcm-chunked")),
-            new(CborValue.Text("combiner"), CborValue.Text("pqf1-concat-extract-v1")),
+            new(CborValue.Text("combiner"), CborValue.Text("pqf1-bind-extract-v1")),
             new(CborValue.Text("kdf"), CborValue.Text("hkdf-sha256")),
             new(CborValue.Text("kem"), CborValue.Text("x25519+ml-kem-1024")),
             new(CborValue.Text("sig"), CborValue.Text("ed25519+ml-dsa-87")),
@@ -116,7 +116,7 @@ public sealed class HappyPath_ValidationTests
         var alg = CborValue.Map(new List<KeyValuePair<CborValue, CborValue>>
         {
             new(CborValue.Text("aead"), CborValue.Text("aes-256-gcm-chunked")),
-            new(CborValue.Text("combiner"), CborValue.Text("pqf1-concat-extract-v1")),
+            new(CborValue.Text("combiner"), CborValue.Text("pqf1-bind-extract-v1")),
             new(CborValue.Text("kdf"), CborValue.Text("hkdf-sha256")),
             new(CborValue.Text("kem"), CborValue.Text("x25519+ml-kem-1024")),
             new(CborValue.Text("sig"), CborValue.Text("ed25519+ml-dsa-87")),
@@ -149,7 +149,7 @@ public sealed class HappyPath_ValidationTests
         var alg = CborValue.Map(new List<KeyValuePair<CborValue, CborValue>>
         {
             new(CborValue.Text("aead"), CborValue.Text("aes-256-gcm-chunked")),
-            new(CborValue.Text("combiner"), CborValue.Text("pqf1-concat-extract-v1")),
+            new(CborValue.Text("combiner"), CborValue.Text("pqf1-bind-extract-v1")),
             new(CborValue.Text("kdf"), CborValue.Text("hkdf-sha256")),
             new(CborValue.Text("kem"), CborValue.Text("x25519+ml-kem-1024")),
             new(CborValue.Text("sig"), CborValue.Text("ed25519+ml-dsa-87")),

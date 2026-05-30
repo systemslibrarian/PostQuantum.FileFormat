@@ -33,7 +33,7 @@ internal sealed class AuthenticatedModeDecryptor
         if (pipeline.Header.Signer is not null)
         {
             var signingPublic = PqfSigningPublicKey.FromParts(pipeline.Header.Signer.ClassicalPub, pipeline.Header.Signer.PqcPub);
-            if (!hybridSigner.Verify(signingPublic, pipeline.HeaderBytes.Span, pipeline.HeaderSignatureBytes.Span))
+            if (!hybridSigner.Verify(signingPublic, HybridSigner.HeaderSignatureDomain, pipeline.HeaderBytes.Span, pipeline.HeaderSignatureBytes.Span))
             {
                 throw new PqfFileException(PqfRefusalReason.SignatureVerificationFailure, "Header signature verification failed");
             }
@@ -92,7 +92,7 @@ internal sealed class AuthenticatedModeDecryptor
                 pipeline.FooterBytes.CopyTo(message.AsMemory(48));
 
                 var signingPublic = PqfSigningPublicKey.FromParts(pipeline.Header.Signer.ClassicalPub, pipeline.Header.Signer.PqcPub);
-                if (!hybridSigner.Verify(signingPublic, message, pipeline.FileSignatureBytes.Span))
+                if (!hybridSigner.Verify(signingPublic, HybridSigner.FileSignatureDomain, message, pipeline.FileSignatureBytes.Span))
                 {
                     throw new PqfFileException(PqfRefusalReason.SignatureVerificationFailure, "File signature verification failed");
                 }

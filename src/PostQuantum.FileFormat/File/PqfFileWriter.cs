@@ -109,8 +109,8 @@ public static class PqfFileWriter
             if (signer is not null)
             {
                 headerSignature = deterministicSigning
-                    ? hybridSigner.SignDeterministic(signer, headerBytes)
-                    : hybridSigner.Sign(signer, headerBytes);
+                    ? hybridSigner.SignDeterministic(signer, HybridSigner.HeaderSignatureDomain, headerBytes)
+                    : hybridSigner.Sign(signer, HybridSigner.HeaderSignatureDomain, headerBytes);
             }
 
             // magic + version + header length
@@ -189,8 +189,8 @@ public static class PqfFileWriter
                 footer.CopyTo(signatureMessage, 48);
 
                 var fileSignature = deterministicSigning
-                    ? hybridSigner.SignDeterministic(signer, signatureMessage)
-                    : hybridSigner.Sign(signer, signatureMessage);
+                    ? hybridSigner.SignDeterministic(signer, HybridSigner.FileSignatureDomain, signatureMessage)
+                    : hybridSigner.Sign(signer, HybridSigner.FileSignatureDomain, signatureMessage);
                 await destination.WriteAsync(fileSignature, cancellationToken).ConfigureAwait(false);
 
                 SecureZero.Clear(chunksHash);
@@ -238,7 +238,7 @@ public static class PqfFileWriter
         var algMap = CborValue.Map(new List<KeyValuePair<CborValue, CborValue>>
         {
             new(CborValue.Text("aead"), CborValue.Text("aes-256-gcm-chunked")),
-            new(CborValue.Text("combiner"), CborValue.Text("pqf1-concat-extract-v1")),
+            new(CborValue.Text("combiner"), CborValue.Text("pqf1-bind-extract-v1")),
             new(CborValue.Text("kdf"), CborValue.Text("hkdf-sha256")),
             new(CborValue.Text("kem"), CborValue.Text("x25519+ml-kem-1024")),
             new(CborValue.Text("sig"), CborValue.Text("ed25519+ml-dsa-87")),

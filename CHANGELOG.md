@@ -11,6 +11,33 @@ policy. Wire format changes are called out here under "Wire format."
 
 ## [Unreleased]
 
+### Changed
+
+- **Bind-extract KEM combiner** (spec §2.4). The HKDF-Extract IKM now
+  folds each recipient's X25519 ephemeral public key (`classical_epk`)
+  and ML-KEM-1024 ciphertext (`pqc_ct`) alongside the two shared
+  secrets, binding the KEK to the exact KEM transcript. Closes the
+  ciphertext/ephemeral substitution gap previously left to the
+  wrap-AEAD check (prior finding F2 / X-Wing-parity item).
+- **Signature domain separation** (spec §6.2). The header and file
+  signatures are now computed over `"PQF1-header-sig-v1" || header_bytes`
+  and `"PQF1-file-sig-v1" || file_id || sha256(chunks) || footer`, so the
+  two signing contexts are explicitly disjoint (prior finding F1).
+- **Rust writer fixes** (found during the above): chunk frame order
+  corrected to `length || flags || ct` per spec §5.3 (was
+  `flags || length`), and the `rfc3339_known_values` test expectation
+  corrected (the date function was right; the test constant was wrong).
+
+### Wire format
+
+- **Breaking (draft).** Spec advanced 0.4 → 0.5. The new `alg.combiner`
+  identifier `pqf1-bind-extract-v1` gates the change: a 0.5 reader
+  refuses 0.4 files and vice versa at the algorithm-identifier check.
+  No change to wire *layout* (field order, lengths, version byte, CBOR
+  structure) — only the bytes fed to the KDF and the signer changed.
+  All 47 conformance vectors regenerated; .NET (140 tests) and the Rust
+  `pqf-conformance` reader both pass 47/47 against the new crypto.
+
 ## [0.4.0-preview.3] — 2026-05-29
 
 ### Added

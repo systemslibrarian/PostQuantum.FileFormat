@@ -134,7 +134,7 @@ A PQF file is a sequence of:
 
 ## Hybrid KEM
 
-The KEM combiner is `pqf1-concat-extract-v1`. For each recipient block,
+The KEM combiner is `pqf1-bind-extract-v1`. For each recipient block,
 the sender:
 
 1. Performs an X25519 key agreement and an ML-KEM-1024 encapsulation,
@@ -146,7 +146,7 @@ the sender:
    {{RFC5869}} from `ss_x || ss_kem` using the prefixed salt.
 4. AES-GCM-wraps the per-file data-encryption key (DEK) under the KEK.
 
-Note that two distinct identifier strings are used: `pqf1-concat-extract-v1`
+Note that two distinct identifier strings are used: `pqf1-bind-extract-v1`
 is the algorithm-identifier value carried in the CBOR header field
 `alg.combiner`, while `PQF1-combiner-v1` is the literal byte prefix of
 the HKDF salt. This is intentional and is one of the points on which

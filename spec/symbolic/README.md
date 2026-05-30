@@ -1,7 +1,7 @@
 # Symbolic model of the PQF hybrid KEM combiner
 
 This directory contains a **work-in-progress symbolic model** of PQF's
-hybrid KEM combiner construction (`pqf1-concat-extract-v1`, spec §2.4)
+hybrid KEM combiner construction (`pqf1-bind-extract-v1`, spec §2.4)
 in the Tamarin Prover and ProVerif languages.
 
 **Status: skeleton.** The model captures the structure of the combiner

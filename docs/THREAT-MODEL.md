@@ -152,11 +152,14 @@ These are not unmitigated threats but design points the author explicitly
 solicits review on. They are listed verbatim in
 `spec/PQF-DESIGN-RATIONALE-v1.md` §11; replicated here for visibility:
 
-1. Whether header-signature and file-signature messages should carry
-   distinct domain-separation prefixes.
+1. ~~Whether header-signature and file-signature messages should carry
+   distinct domain-separation prefixes.~~ **Resolved in draft 0.5:** they now
+   carry `PQF1-header-sig-v1` / `PQF1-file-sig-v1` prefixes.
 2. Whether the footer should be AEAD-bound on unsigned files. Currently,
    tamper-evidence on the footer of an unsigned file is provided by the
-   count/byte-tally reconciliation, not by an AEAD tag.
+   count/byte-tally reconciliation, not by an AEAD tag. (This is the
+   unsigned whole-payload-erasure edge; still open — unsigned files carry no
+   authenticity by design.)
 
 ## What PQF deliberately does NOT promise
 

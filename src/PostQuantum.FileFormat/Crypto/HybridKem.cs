@@ -20,7 +20,7 @@ public sealed class HybridKem
         var ssClassical = _provider.X25519DeriveSharedSecret(esk, recipientPublicKey.X25519PublicKey.Span);
         var (ssPqc, ctPqc) = _provider.MlKem1024Encapsulate(recipientPublicKey.MlKem1024PublicKey.Span);
 
-        var kek = HkdfCombiner.DeriveKek(ssClassical, ssPqc, fileId, recipientIndex);
+        var kek = HkdfCombiner.DeriveKek(ssClassical, ssPqc, epk, ctPqc, fileId, recipientIndex);
 
         SecureZero.Clear(esk);
         SecureZero.Clear(ssClassical);
@@ -39,7 +39,7 @@ public sealed class HybridKem
         var ssClassical = _provider.X25519DeriveSharedSecret(identity.X25519PrivateKey.Span, classicalEpk);
         var ssPqc = _provider.MlKem1024Decapsulate(identity.MlKem1024PrivateKey.Span, pqcCiphertext);
 
-        var kek = HkdfCombiner.DeriveKek(ssClassical, ssPqc, fileId, recipientIndex);
+        var kek = HkdfCombiner.DeriveKek(ssClassical, ssPqc, classicalEpk, pqcCiphertext, fileId, recipientIndex);
 
         SecureZero.Clear(ssClassical);
         SecureZero.Clear(ssPqc);

@@ -1,7 +1,7 @@
 # PQF File Format — Specification, Version 1
 
 **Status:** DRAFT / EXPERIMENTAL — do not use to protect irreplaceable data.
-**Document version:** 0.4 (2026-05-29)
+**Document version:** 0.5 (2026-05-30)
 **Editor:** Paul Clark <paul@systemslibrarian.dev>
 **License:** MIT
 
@@ -10,6 +10,25 @@
 ---
 
 ## Change log
+
+**0.5 (2026-05-30)** — **Wire-format change** (draft; cross-incompatible with
+0.4 files). Two cryptographic binding hardenings, signalled by the new
+`alg.combiner` identifier `pqf1-bind-extract-v1`; a 0.5 reader refuses 0.4
+files and vice versa at the algorithm-identifier check.
+
+- §2.4: **Bind-extract combiner.** The HKDF-Extract IKM now folds the X25519
+  ephemeral public key (`classical_epk`) and the ML-KEM-1024 ciphertext
+  (`pqc_ct`) alongside the two shared secrets, binding the KEK to the exact
+  KEM transcript (closes the ciphertext/ephemeral substitution gap previously
+  left to the wrap-AEAD check alone; prior finding F2 / X-Wing-parity item).
+- §6.2/§6.3/§6.4.1: **Signature domain separation.** The header signature and
+  file signature are now computed over `"PQF1-header-sig-v1" || header_bytes`
+  and `"PQF1-file-sig-v1" || file_id || sha256_of_chunks || footer`
+  respectively, so the two signing contexts are explicitly disjoint (closes
+  prior finding F1 / open question §11.6).
+
+No change to the wire *layout* (field order, lengths, version byte, CBOR
+structure); only the bytes fed to the KDF and the signer changed.
 
 **0.4 (2026-05-29)** — Reviewer-readiness milestone (pre-review hardening pass,
 findings F1–F9). No wire-format, parameter, or normative-MUST changes; the
@@ -168,13 +187,17 @@ Signatures are OPTIONAL per file. Processing mode semantics (§6.4) apply.
 **HKDF-SHA-256** (RFC 5869).
 
 The combiner binds the file instance and recipient index into the
-HKDF-Extract salt before combining shared secrets, providing early domain
-separation:
+HKDF-Extract salt, and binds the full KEM transcript — both shared secrets,
+the X25519 ephemeral public key (`classical_epk`), and the ML-KEM-1024
+ciphertext (`pqc_ct`) — into the HKDF-Extract IKM:
 
 ```
 combined_ss = HKDF-Extract(
     salt = "PQF1-combiner-v1" || file_id (16 bytes) || recipient_index (4 bytes BE),
-    ikm  = x25519_shared_secret (32 bytes) || mlkem_shared_secret (32 bytes)
+    ikm  = x25519_shared_secret (32 bytes)
+        || mlkem_shared_secret (32 bytes)
+        || classical_epk (32 bytes)
+        || pqc_ct (1568 bytes)
 )
 
 kek = HKDF-Expand(
@@ -184,9 +207,21 @@ kek = HKDF-Expand(
 )
 ```
 
-**Rationale.** This adopts the "concatenate-then-extract" pattern aligned with
-draft-ietf-pquip-hybrid-signature-spectrums and draft-ounsworth-cfrg-kem-combiners.
-This document does not claim a formal proof for the exact overall assembly.
+`classical_epk` and `pqc_ct` are the same bytes that appear in this recipient's
+header block (§4.2.2), so both writer and reader have them at KEK-derivation
+time.
+
+**Rationale.** This is the "bind-extract" combiner (`pqf1-bind-extract-v1`). It
+extends the concatenate-then-extract pattern of
+draft-ounsworth-cfrg-kem-combiners by folding the ML-KEM ciphertext and the
+X25519 ephemeral public key into the Extract input, in the spirit of X-Wing's
+transcript binding. This binds the KEK to the exact ciphertext/ephemeral that
+produced it: a substituted `pqc_ct` or `classical_epk` yields a different KEK,
+closing the substitution gap that earlier drafts left to the wrap-AEAD check
+alone. The construction is **not** byte-equivalent to X-Wing (HKDF-SHA-256 vs.
+SHA3-256; PQF additionally folds `pqc_ct`, which ML-KEM's FO transform already
+binds to its shared secret), so X-Wing's proofs do not transfer unchanged. This
+document does not claim a formal proof for the exact overall assembly.
 
 ### 2.5 Header encoding
 
@@ -277,7 +312,7 @@ CBOR binary. A machine-checkable CDDL counterpart lives at
 {
   "alg": {
     "aead":     "aes-256-gcm-chunked",
-    "combiner": "pqf1-concat-extract-v1",
+    "combiner": "pqf1-bind-extract-v1",
     "kdf":      "hkdf-sha256",
     "kem":      "x25519+ml-kem-1024",
     "sig":      "ed25519+ml-dsa-87"
@@ -319,7 +354,7 @@ fields are permitted inside `alg`.
 | Field | Required value |
 |---|---|
 | `aead` | `"aes-256-gcm-chunked"` |
-| `combiner` | `"pqf1-concat-extract-v1"` |
+| `combiner` | `"pqf1-bind-extract-v1"` |
 | `kdf` | `"hkdf-sha256"` |
 | `kem` | `"x25519+ml-kem-1024"` |
 | `sig` | `"ed25519+ml-dsa-87"` |
@@ -482,9 +517,10 @@ optionally a signing identity `S`:
    f. `wrapped_dek_i = AES-256-GCM-Encrypt(KEK, wrap_nonce_i, DEK, aad = file_id)`.
    g. Append recipient block to header.
 4. Encode the header as deterministic CBOR per §2.5.
-5. If `S` is provided:
-   a. `ed25519_header_sig = Ed25519.Sign(S.ed25519_sk, header_bytes)`.
-   b. `mldsa_header_sig = ML-DSA-87.Sign(S.mldsa_sk, header_bytes)`.
+5. If `S` is provided, sign the domain-separated header message
+   `header_sig_msg = "PQF1-header-sig-v1" || header_bytes`:
+   a. `ed25519_header_sig = Ed25519.Sign(S.ed25519_sk, header_sig_msg)`.
+   b. `mldsa_header_sig = ML-DSA-87.Sign(S.mldsa_sk, header_sig_msg)`.
    c. `header_signature = ed25519_header_sig || mldsa_header_sig` (4691 bytes).
 6. Write file prefix: magic + version + header_length + header + (header_signature if signed).
 7. Stream payload as chunks per §5. Compute a running SHA-256 over all
@@ -492,9 +528,9 @@ optionally a signing identity `S`:
    the order written). Track `chunk_count` and `total_plaintext_bytes`.
 8. Write footer: `"PQFE" || chunk_count (uint64 BE) || total_plaintext_bytes (uint64 BE)`.
 9. If `S` is provided: compute and write `file_signature` (4691 bytes) as
-   hybrid signature over:
+   hybrid signature over the domain-separated file message:
    ```
-   file_id (16) || sha256_of_chunks (32) || footer (20 bytes)
+   "PQF1-file-sig-v1" || file_id (16) || sha256_of_chunks (32) || footer (20 bytes)
    ```
 
 ### 6.3 Decryption (common steps)
@@ -515,9 +551,10 @@ Both processing modes (§6.4) share these initial steps:
 7. If `signer` is present:
    a. Read 4691 bytes as `header_signature`.
    b. Split: `ed25519_sig = header_signature[0..64]`, `mldsa_sig = header_signature[64..4691]`.
-   c. Verify `Ed25519.Verify(signer.classical_pub, header_bytes, ed25519_sig)`.
-   d. Verify `ML-DSA-87.Verify(signer.pqc_pub, header_bytes, mldsa_sig)`.
-   e. If EITHER verification fails, refuse.
+   c. Let `header_sig_msg = "PQF1-header-sig-v1" || header_bytes`.
+   d. Verify `Ed25519.Verify(signer.classical_pub, header_sig_msg, ed25519_sig)`.
+   e. Verify `ML-DSA-87.Verify(signer.pqc_pub, header_sig_msg, mldsa_sig)`.
+   f. If EITHER verification fails, refuse.
 8. For each recipient block in order, attempt to recover the DEK with the
    reader's identity `I`:
    a. `ss_classical = X25519(I.x25519_sk, epk_i)`.
@@ -555,7 +592,7 @@ Procedure:
    `total_plaintext_bytes` match observed values. If either mismatches,
    refuse. Retain the exact 20 footer bytes as read from the file.
 5. If signed: read 4691-byte file_signature, split as in §6.3 step 7b,
-   verify both halves over `file_id || sha256_of_chunks || footer_bytes`,
+   verify both halves over `"PQF1-file-sig-v1" || file_id || sha256_of_chunks || footer_bytes`,
    where `footer_bytes` is the exact 20 bytes retained in step 4. The bytes
    used in signature verification MUST be byte-identical to the bytes read
    from the file; re-encoding the parsed footer values is non-conforming.
@@ -755,11 +792,14 @@ violate the corresponding property.
 
 When signed, PQF binds the following:
 
-- **Header signature** covers: algorithm identifiers, `chunk_size`, `created`,
-  `file_id`, recipient list, signer public keys.
-- **File signature** covers: `file_id || sha256(chunk_bytes) || footer`.
+- **Header signature** covers: `"PQF1-header-sig-v1" || header_bytes` —
+  algorithm identifiers, `chunk_size`, `created`, `file_id`, recipient list,
+  signer public keys.
+- **File signature** covers:
+  `"PQF1-file-sig-v1" || file_id || sha256(chunk_bytes) || footer`.
   Where `footer` is the full 20 bytes including the footer magic, chunk
-  count, and plaintext byte count.
+  count, and plaintext byte count. The two signatures carry distinct
+  domain-separation prefixes so neither can be replayed as the other.
 
 Together these prevent: header tampering, recipient substitution, chunk
 reordering, chunk insertion/deletion, truncation, and footer tampering.

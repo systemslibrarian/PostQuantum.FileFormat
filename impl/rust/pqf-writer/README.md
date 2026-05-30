@@ -19,7 +19,7 @@ The pieces that are TODO and constitute the next contribution surface:
 1. **X25519 ephemeral keygen + ECDH** with the recipient's classical pub.
 2. **ML-KEM-1024 encapsulation** against the recipient's PQ pub.
 3. **HKDF combiner** producing the per-recipient KEK
-   (`pqf1-concat-extract-v1`, spec §2.4).
+   (`pqf1-bind-extract-v1`, spec §2.4).
 4. **AES-GCM wrap** of the per-file DEK under each recipient's KEK.
 5. **Chunked AEAD** of the plaintext with per-chunk HKDF-derived keys.
 6. **Footer** construction.

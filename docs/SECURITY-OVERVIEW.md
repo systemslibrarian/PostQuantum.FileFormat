@@ -29,30 +29,40 @@ claims, what it does not claim, and where to read details.
 - Recipient count/order and each recipient block's public encapsulation data.
 - Signer public keys when signatures are present.
 
-## Named combiner deviation from X-Wing/CFRG
+## Named combiner relationship to X-Wing/CFRG
 
-PQF v1 uses concatenate-then-extract HKDF over the two shared secrets and
-binds `file_id || recipient_index` in HKDF-Extract salt.
-
-PQF v1 does not include X-Wing-style ciphertext/public-key binding in the
-combiner transcript. Instead it relies on:
+PQF (draft 0.5, `pqf1-bind-extract-v1`) uses concatenate-then-extract HKDF and
+binds `file_id || recipient_index` in the HKDF-Extract salt. As of 0.5 it
+**also folds the ML-KEM ciphertext (`pqc_ct`) and the X25519 ephemeral public
+key (`classical_epk`) into the HKDF-Extract IKM**, binding the KEK to the exact
+KEM transcript (the bind-extract combiner). This is in the spirit of X-Wing's
+transcript binding, layered on top of:
 
 - ML-KEM-1024 FO binding for the PQ shared secret, and
 - per-recipient DEK-wrap AEAD substitution detection.
 
-This is a deliberate v1 choice. X-Wing-parity transcript binding is tracked as
-v1.1 roadmap work in the rationale open questions.
+The construction is **not** byte-equivalent to X-Wing (HKDF-SHA-256 vs.
+SHA3-256; `pqc_ct` folded explicitly), so X-Wing's proofs do not transfer
+unchanged. See rationale §2.5.
 
 ## Open questions
 
-- Dual-PRF treatment of the v1 combiner assembly: see rationale question 2.
+- Dual-PRF treatment of the combiner assembly: see rationale question 2.
 - Streaming post-hoc failure ergonomics and API contracts: see rationale
   question 3.
 - Unsigned-file footer/truncation edge (whole-payload erasure to empty): see
   rationale question 7 and threat model STRIDE notes.
-- Domain separation between header signature and file signature: see rationale
-  question 6.
-- X-Wing/CFRG combiner parity for ciphertext binding: see rationale question 9.
+- Machine-checked proof of the exact combiner assembly (the symbolic models are
+  research-level follow-up).
+
+## Closed since earlier drafts
+
+- **Signature domain separation** (was rationale question 6 / finding F1):
+  resolved in draft 0.5 — header and file signatures now carry distinct
+  `PQF1-header-sig-v1` / `PQF1-file-sig-v1` prefixes.
+- **X-Wing/CFRG combiner ciphertext binding** (was rationale question 9 /
+  finding F2): resolved in draft 0.5 — `pqc_ct` and `classical_epk` are folded
+  into the combiner IKM.
 
 ## Where to start reading
 

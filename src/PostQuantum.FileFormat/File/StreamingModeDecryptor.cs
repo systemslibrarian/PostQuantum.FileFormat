@@ -34,7 +34,7 @@ internal sealed class StreamingModeDecryptor
             if (pipeline.Header.Signer is not null)
             {
                 var signingPublic = PqfSigningPublicKey.FromParts(pipeline.Header.Signer.ClassicalPub, pipeline.Header.Signer.PqcPub);
-                if (!hybridSigner.Verify(signingPublic, pipeline.HeaderBytes.Span, pipeline.HeaderSignatureBytes.Span))
+                if (!hybridSigner.Verify(signingPublic, HybridSigner.HeaderSignatureDomain, pipeline.HeaderBytes.Span, pipeline.HeaderSignatureBytes.Span))
                 {
                     return new PqfDecryptResult(false, PqfRefusalReason.SignatureVerificationFailure, 0, false);
                 }
@@ -85,7 +85,7 @@ internal sealed class StreamingModeDecryptor
                     pipeline.FooterBytes.CopyTo(message.AsMemory(48));
 
                     var signingPublic = PqfSigningPublicKey.FromParts(pipeline.Header.Signer.ClassicalPub, pipeline.Header.Signer.PqcPub);
-                    if (!hybridSigner.Verify(signingPublic, message, pipeline.FileSignatureBytes.Span))
+                    if (!hybridSigner.Verify(signingPublic, HybridSigner.FileSignatureDomain, message, pipeline.FileSignatureBytes.Span))
                     {
                         return new PqfDecryptResult(false, PqfRefusalReason.SignatureVerificationFailure, emitted, true);
                     }

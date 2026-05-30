@@ -7,7 +7,7 @@ isn't.
 ## "Should I use PQF for my data today?"
 
 **Probably not for irreplaceable data.** The spec is still draft
-v0.4; the wire format is not frozen. The reference implementation
+v0.5; the wire format is not frozen. The reference implementation
 has not undergone external cryptographic review. See
 [`docs/COMPATIBILITY.md`](./COMPATIBILITY.md) for the v1.0.0 freeze
 contract and the blocker list. PQF is appropriate for:

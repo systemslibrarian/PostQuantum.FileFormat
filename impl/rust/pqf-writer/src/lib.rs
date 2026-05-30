@@ -11,7 +11,7 @@
 //!   - X25519 ephemeral keygen + ECDH with each recipient's classical pub.
 //!   - ML-KEM-1024 encapsulation against each recipient's PQ pub.
 //!   - HKDF-Extract combiner producing per-recipient KEK
-//!     (`pqf1-concat-extract-v1`, spec §2.4).
+//!     (`pqf1-bind-extract-v1`, spec §2.4).
 //!   - AES-256-GCM wrap of the per-file DEK under each recipient KEK.
 //!   - Per-chunk HKDF-Expand derived chunk keys; AES-256-GCM with the
 //!     fixed zero nonce and AAD bound to `file_id || idx || is_final`.
@@ -53,6 +53,10 @@ const FOOTER_LEN: usize = 20;
 const COMBINER_SALT_PREFIX: &[u8] = b"PQF1-combiner-v1";
 const KEK_INFO: &[u8] = b"PQF1-kek-v1";
 const CHUNK_INFO_PREFIX: &[u8] = b"PQF1-chunk-v1";
+
+// Signature domain-separation labels (§6.2); must byte-match the reader.
+const HEADER_SIG_DOMAIN: &[u8] = b"PQF1-header-sig-v1";
+const FILE_SIG_DOMAIN: &[u8] = b"PQF1-file-sig-v1";
 
 const X25519_PK_LEN: usize = 32;
 const MLKEM_PK_LEN: usize = 1568;
@@ -168,7 +172,10 @@ fn encrypt_impl(
     out.extend_from_slice(&header_bytes);
 
     if let Some(s) = signer {
-        let sig = hybrid_sign(s, &header_bytes)?;
+        let mut header_sig_msg = Vec::with_capacity(HEADER_SIG_DOMAIN.len() + header_bytes.len());
+        header_sig_msg.extend_from_slice(HEADER_SIG_DOMAIN);
+        header_sig_msg.extend_from_slice(&header_bytes);
+        let sig = hybrid_sign(s, &header_sig_msg)?;
         out.extend_from_slice(&sig);
     }
 
@@ -207,10 +214,12 @@ fn encrypt_impl(
             .encrypt(nonce, Payload { msg: chunk_pt, aad: &aad })
             .map_err(|_| WriterError::NotYetImplemented("AEAD encrypt failed"))?;
 
+        // On-disk chunk frame is length(uint32 BE) || flags(uint8) || ct||tag
+        // (spec §5.3), matching the reader and the .NET reference writer.
         let flags: u8 = if is_final { 0x01 } else { 0x00 };
         let frame_start = out.len();
-        out.push(flags);
         out.extend_from_slice(&(ct.len() as u32).to_be_bytes());
+        out.push(flags);
         out.extend_from_slice(&ct);
         // The reader's chunks_sha256 covers the full on-disk chunk frame
         // (5-byte prefix + ciphertext+tag).
@@ -228,7 +237,8 @@ fn encrypt_impl(
 
     if let Some(s) = signer {
         let chunks_sha = chunks_hasher.finalize();
-        let mut msg = Vec::with_capacity(16 + 32 + FOOTER_LEN);
+        let mut msg = Vec::with_capacity(FILE_SIG_DOMAIN.len() + 16 + 32 + FOOTER_LEN);
+        msg.extend_from_slice(FILE_SIG_DOMAIN);
         msg.extend_from_slice(&file_id);
         msg.extend_from_slice(&chunks_sha);
         msg.extend_from_slice(&footer_bytes);
@@ -355,16 +365,20 @@ fn build_recipient_block(
         .map_err(|_| WriterError::NotYetImplemented("ML-KEM-1024 encapsulate failed"))?;
     let pqc_ct: Vec<u8> = ct_arr.as_slice().to_vec();
 
-    // KEK = HKDF-Extract over (ss_classical || ss_pqc) with salt
-    // = COMBINER_SALT_PREFIX || file_id || idx_be32, then HKDF-Expand with KEK_INFO.
+    // KEK = HKDF-Extract over IKM with salt = COMBINER_SALT_PREFIX || file_id
+    // || idx_be32, then HKDF-Expand with KEK_INFO.
+    // IKM = ss_x25519(32) || ss_mlkem(32) || classical_epk(32) || pqc_ct(1568)
+    // binds the KEK to the exact KEM transcript (bind-extract combiner, §2.4).
     let mut salt = Vec::with_capacity(COMBINER_SALT_PREFIX.len() + 16 + 4);
     salt.extend_from_slice(COMBINER_SALT_PREFIX);
     salt.extend_from_slice(file_id);
     salt.extend_from_slice(&idx.to_be_bytes());
 
-    let mut ikm = [0u8; 64];
-    ikm[..32].copy_from_slice(ss_classical.as_bytes());
-    ikm[32..].copy_from_slice(ss_pqc.as_slice());
+    let mut ikm = Vec::with_capacity(64 + 32 + 1568);
+    ikm.extend_from_slice(ss_classical.as_bytes());
+    ikm.extend_from_slice(ss_pqc.as_slice());
+    ikm.extend_from_slice(epk.as_bytes());
+    ikm.extend_from_slice(pqc_ct.as_slice());
 
     let hk = Hkdf::<Sha256>::new(Some(&salt), &ikm);
     let mut kek = [0u8; 32];
@@ -436,8 +450,8 @@ mod tests {
 
     #[test]
     fn rfc3339_known_values() {
-        // 2026-04-21T14:30:00Z = unix seconds 1779719400
-        assert_eq!(seconds_to_rfc3339(1_779_719_400), "2026-04-21T14:30:00Z");
+        // 2026-05-25T14:30:00Z = unix seconds 1779719400
+        assert_eq!(seconds_to_rfc3339(1_779_719_400), "2026-05-25T14:30:00Z");
         assert_eq!(seconds_to_rfc3339(0), "1970-01-01T00:00:00Z");
     }
 }

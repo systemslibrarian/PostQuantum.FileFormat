@@ -23,7 +23,7 @@ const KNOWN_TOP_FIELDS: &[&str] = &[
 
 const ALG_REQUIRED: &[(&str, &str)] = &[
     ("aead", "aes-256-gcm-chunked"),
-    ("combiner", "pqf1-concat-extract-v1"),
+    ("combiner", "pqf1-bind-extract-v1"),
     ("kdf", "hkdf-sha256"),
     ("kem", "x25519+ml-kem-1024"),
     ("sig", "ed25519+ml-dsa-87"),

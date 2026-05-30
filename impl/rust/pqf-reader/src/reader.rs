@@ -31,6 +31,12 @@ const COMBINER_SALT_PREFIX: &[u8] = b"PQF1-combiner-v1";
 const KEK_INFO: &[u8] = b"PQF1-kek-v1";
 const CHUNK_INFO_PREFIX: &[u8] = b"PQF1-chunk-v1";
 
+// Signature domain-separation labels prepended to each signed message so the
+// header and file signatures are over disjoint, explicitly tagged inputs
+// (§6.2). Must byte-match the .NET reference implementation.
+const HEADER_SIG_DOMAIN: &[u8] = b"PQF1-header-sig-v1";
+const FILE_SIG_DOMAIN: &[u8] = b"PQF1-file-sig-v1";
+
 /// Result of parsing and validating a PQF file's structure.
 pub struct ParsedFile {
     pub header: Header,
@@ -278,15 +284,19 @@ pub fn parse(file_bytes: &[u8]) -> Result<ParsedFile> {
 
     // Verify hybrid signatures eagerly (parse-time refusal).
     if let Some(signer) = &header.signer {
+        let mut header_sig_msg = Vec::with_capacity(HEADER_SIG_DOMAIN.len() + header_bytes.len());
+        header_sig_msg.extend_from_slice(HEADER_SIG_DOMAIN);
+        header_sig_msg.extend_from_slice(header_bytes);
         let hsig = header_signature.as_ref().expect("signer => header sig");
-        if !verify_hybrid_signature(signer, header_bytes, hsig) {
+        if !verify_hybrid_signature(signer, &header_sig_msg, hsig) {
             return Err(PqfError::new(
                 RefusalReason::SignatureVerificationFailure,
                 "Header hybrid signature verification failed",
             ));
         }
 
-        let mut signed_msg = Vec::with_capacity(16 + 32 + FOOTER_LEN);
+        let mut signed_msg = Vec::with_capacity(FILE_SIG_DOMAIN.len() + 16 + 32 + FOOTER_LEN);
+        signed_msg.extend_from_slice(FILE_SIG_DOMAIN);
         signed_msg.extend_from_slice(&header.file_id);
         signed_msg.extend_from_slice(&chunks_sha256);
         signed_msg.extend_from_slice(&footer_bytes);
@@ -348,9 +358,14 @@ pub fn decrypt(parsed: &ParsedFile, identity: &Identity) -> Result<Vec<u8>> {
         salt.extend_from_slice(&parsed.header.file_id);
         salt.extend_from_slice(&(idx as u32).to_be_bytes());
 
-        let mut ikm = [0u8; 64];
-        ikm[..32].copy_from_slice(ss_classical.as_bytes());
-        ikm[32..].copy_from_slice(ss_pqc.as_slice());
+        // IKM = ss_x25519(32) || ss_mlkem(32) || classical_epk(32) || pqc_ct(1568).
+        // Folding the ciphertext and ephemeral public key into the extract input
+        // binds the KEK to the exact KEM transcript (bind-extract combiner, §2.4).
+        let mut ikm = Vec::with_capacity(64 + 32 + 1568);
+        ikm.extend_from_slice(ss_classical.as_bytes());
+        ikm.extend_from_slice(ss_pqc.as_slice());
+        ikm.extend_from_slice(&r.classical_epk[..]);
+        ikm.extend_from_slice(r.pqc_ct.as_slice());
 
         let hk = Hkdf::<Sha256>::new(Some(&salt), &ikm);
         let mut kek = [0u8; 32];
