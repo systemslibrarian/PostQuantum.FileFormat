@@ -20,10 +20,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup .NET 8
+      - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.x
 
       - name: Restore
         run: dotnet restore PostQuantum.FileFormat.sln
@@ -46,10 +46,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup .NET 8
+      - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.x
 
       - name: Build
         run: dotnet build PostQuantum.FileFormat.sln -c Release --nologo -v minimal
@@ -65,10 +65,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup .NET 8
+      - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.x
 
       - name: Build
         run: dotnet build PostQuantum.FileFormat.sln -c Release --nologo -v minimal
@@ -77,31 +77,29 @@ jobs:
         shell: pwsh
         run: ./scripts/smoke.ps1
 
-  runtime-matrix:
-    name: Runtime roll-forward smoke (.NET ${{ matrix.runtime }} on ${{ matrix.os }})
+  packed-tool-roundtrip:
+    name: Packed tool roundtrip (.NET 10 / ${{ matrix.os }})
     needs: build-test
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        runtime: ['8.0.x', '9.0.x', '10.0.x']
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Build with the .NET 8 SDK (the project's TargetFramework), then add the
-      # matrix runtime so we can verify <RollForward>Major</RollForward> actually
-      # lets the packed tool execute on .NET 9 and .NET 10.
-      - name: Setup .NET 8 SDK (build)
+      # The library + CLI target net10.0 only since 0.6.0-preview.2. Before
+      # that release this job ran a roll-forward matrix across .NET 8, 9, 10
+      # to prove <RollForward>Major</RollForward> let a net8.0 build execute
+      # on newer runtimes. That mechanism is no longer relevant — there is no
+      # newer runtime to roll forward to from net10.0 — so the job now just
+      # verifies the packed `dotnet tool` installs and roundtrips a real file
+      # end-to-end on the .NET 10 runtime, across all three OSes.
+      - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
-
-      - name: Setup .NET ${{ matrix.runtime }} (runtime under test)
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ matrix.runtime }}
+          dotnet-version: 10.0.x
 
       - name: Pack CLI
         shell: bash
@@ -120,12 +118,12 @@ jobs:
             --add-source "${{ runner.temp }}/nupkgs" \
             --prerelease
 
-      - name: pqf --help (must run on .NET ${{ matrix.runtime }})
+      - name: pqf --help (must run on .NET 10)
         shell: bash
         working-directory: ${{ runner.temp }}/tool-test
         run: dotnet tool run pqf -- --help
 
-      - name: Roundtrip on .NET ${{ matrix.runtime }} (POSIX)
+      - name: Roundtrip on .NET 10 (POSIX)
         if: matrix.os != 'windows-latest'
         shell: bash
         working-directory: ${{ runner.temp }}/tool-test
@@ -139,9 +137,9 @@ jobs:
           dotnet tool run pqf -- decrypt --in sample.pqf --out sample.out.bin \
             --identity enc.key --mode authenticated
           diff -q sample.bin sample.out.bin
-          echo "roundtrip OK on .NET ${{ matrix.runtime }} / ${{ matrix.os }}"
+          echo "roundtrip OK on .NET 10 / ${{ matrix.os }}"
 
-      - name: Roundtrip on .NET ${{ matrix.runtime }} (Windows)
+      - name: Roundtrip on .NET 10 (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
         working-directory: ${{ runner.temp }}/tool-test
@@ -159,7 +157,7 @@ jobs:
           $hashIn  = (Get-FileHash sample.bin     -Algorithm SHA256).Hash
           $hashOut = (Get-FileHash sample.out.bin -Algorithm SHA256).Hash
           if ($hashIn -ne $hashOut) { throw "roundtrip mismatch: $hashIn != $hashOut" }
-          Write-Host "roundtrip OK on .NET ${{ matrix.runtime }} / windows-latest"
+          Write-Host "roundtrip OK on .NET 10 / windows-latest"
 
   rust-conformance:
     name: Cross-impl conformance (Rust reader vs .NET vectors)
@@ -197,10 +195,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup .NET 8
+      - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.x
 
       - name: Restore
         run: dotnet restore PostQuantum.FileFormat.sln
@@ -237,10 +235,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup .NET 8
+      - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.x
 
       - name: Restore
         run: |
