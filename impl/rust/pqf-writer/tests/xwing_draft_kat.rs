@@ -164,6 +164,22 @@ fn xwing_combiner_matches_published_draft_vector() {
     // EXACTLY mirrors the formula in `pqf-writer/src/lib.rs` (and in
     // `src/PostQuantum.FileFormat/Crypto/XWingKem.cs`). If this assertion
     // fails, EITHER the formula is wrong OR the published vector is.
+    // Pin the four intermediate values for cross-referencing with the
+    // C# port of this KAT (`XWingCombiner_MatchesPublishedDraftVector`
+    // in tests/.../Crypto/XWingKemTests.cs). The C# test hard-codes
+    // these exact bytes so that the .NET side does not need a
+    // deterministic ML-KEM encap (BouncyCastle 2.6.2 does not expose
+    // ML-KEM EncapsDerand on its public API). Both impls then assert
+    // ComputeCombiner(those_bytes) == EXPECTED_SS_HEX.
+    //
+    //   ss_M = 7631eaf24bcc7ba2d1656d8f53778f8caa5f1ce33180e8ab405b9247eab76dfc
+    //   ss_X = 1e53cb26910141b4a09b0664deb8ec55376bcdbdfe2bfc8277883939a76d6131
+    //   ct_X = e56f17576740ce2a32fc5145030145cfb97e63e0e41d354274a079d3e6fb2e15
+    //   pk_X = 859edb06eff389b27dce59844570216223593d4ba32d9abac8cd049040ef6534
+    //
+    // ct_X and pk_X are independently verifiable against the published
+    // `ct` and `pk` in PK_HEX / EXPECTED_CT (last 32 bytes of each).
+
     let mut h = <Sha3_256 as Digest>::new();
     h.update(ss_m.as_slice());
     h.update(ss_x.as_bytes());

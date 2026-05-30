@@ -132,7 +132,17 @@ public sealed class XWingKem
         }
     }
 
-    private static byte[] ComputeCombiner(
+    // Exposed `internal` (rather than `private`) so that
+    // `XWingKemTests.XWingCombiner_MatchesPublishedDraftVector` can drive
+    // it with hard-coded intermediate values extracted from the X-Wing
+    // draft Appendix C vector — the BouncyCastle 2.6.2 .NET surface does
+    // not expose ML-KEM deterministic encap, so a full encap-driven KAT
+    // is not feasible on the .NET side. The Rust KAT in
+    // `impl/rust/pqf-writer/tests/xwing_draft_kat.rs` covers the full
+    // encap path; this entry point covers the SHA3-256 invocation
+    // independently. Production callers go through Encapsulate /
+    // Decapsulate above.
+    internal static byte[] ComputeCombiner(
         ReadOnlySpan<byte> ssM,
         ReadOnlySpan<byte> ssX,
         ReadOnlySpan<byte> ctX,

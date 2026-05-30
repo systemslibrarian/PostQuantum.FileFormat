@@ -39,6 +39,25 @@ The lesson: self-consistency tests are necessary but not sufficient
 for cryptographic interop. **KAT against a published standard test
 vector is the only reliable way to catch this class of bug.**
 
+### Added
+
+- **C# port of the X-Wing draft KAT** —
+  `XWingKemTests.XWingCombiner_MatchesPublishedDraftVector` in
+  `tests/PostQuantum.FileFormat.Tests/Crypto/XWingKemTests.cs`. The
+  .NET implementation was transitively validated by the Rust KAT
+  through the shared formula; this test makes the .NET side
+  independently self-evidencing without requiring deterministic ML-KEM
+  encap on the BouncyCastle 2.6.2 surface (which doesn't expose
+  EncapsDerand publicly). Approach: hard-code the four intermediate
+  values `(ss_M, ss_X, ct_X, pk_X)` extracted from the Rust KAT's
+  deterministic encap, then assert `XWingKem.ComputeCombiner` reproduces
+  the draft's published `ss = d2df0522…e384`. `ct_X` and `pk_X` are
+  independently verifiable as the last 32 bytes of the draft's
+  published `ct` (1120 bytes) and `pk` (1216 bytes). `ComputeCombiner`
+  is now `internal static` (rather than `private static`) with an
+  explanatory comment so this test can drive it without going through
+  the random `Encapsulate` path.
+
 ## [0.6.0-preview.1] — 2026-05-30
 
 ### Wire format — BREAKING

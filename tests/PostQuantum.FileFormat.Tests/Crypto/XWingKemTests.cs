@@ -121,4 +121,53 @@ public sealed class XWingKemTests
         Assert.Equal(32, XWingKem.MlKem768SharedSecretLength);
         Assert.Equal(32, XWingKem.X25519SharedSecretLength);
     }
+
+    [Fact]
+    public void XWingCombiner_MatchesPublishedDraftVector()
+    {
+        // KAT against draft-connolly-cfrg-xwing-kem Appendix C, example 1.
+        //
+        // The X-Wing draft publishes (seed, eseed, pk, ct, ss) for a complete
+        // deterministic encapsulation. The Rust KAT
+        // (impl/rust/pqf-writer/tests/xwing_draft_kat.rs) replays the full
+        // encap using ml-kem 0.2's deterministic feature + x25519-dalek and
+        // proves the combiner output equals the published ss byte-for-byte.
+        //
+        // This .NET-side KAT covers the same property — that the SHA3-256
+        // combiner formula is byte-correct against the draft — without
+        // requiring deterministic ML-KEM encap on the .NET surface.
+        // BouncyCastle 2.6.2 does not expose ML-KEM EncapsDerand publicly,
+        // so we instead pin the four intermediate values the Rust KAT
+        // surfaces (after independently verifying them against the draft)
+        // and assert XWingKem.ComputeCombiner(those bytes) reproduces the
+        // published ss.
+        //
+        // ct_X and pk_X are independently verifiable: they are the last 32
+        // bytes of the draft's published ct (1120 bytes) and pk (1216 bytes)
+        // respectively. The Rust KAT's pk hex / ct hex tail bytes match.
+        //
+        // If THIS assertion ever fails, exactly one of these has gone wrong:
+        //   (a) the SHA3-256 input order in XWingKem.ComputeCombiner drifted
+        //       (most likely the label position),
+        //   (b) the XWING_LABEL constant drifted from 5C 2E 2F 2F 5E 5C,
+        //   (c) BouncyCastle's Sha3Digest(256) diverged from FIPS 202, or
+        //   (d) the draft's appendix vector changed.
+        //
+        // Reference: draft-connolly-cfrg-xwing-kem, Appendix C, example 1.
+
+        var ssM = Convert.FromHexString(
+            "7631eaf24bcc7ba2d1656d8f53778f8caa5f1ce33180e8ab405b9247eab76dfc");
+        var ssX = Convert.FromHexString(
+            "1e53cb26910141b4a09b0664deb8ec55376bcdbdfe2bfc8277883939a76d6131");
+        var ctX = Convert.FromHexString(
+            "e56f17576740ce2a32fc5145030145cfb97e63e0e41d354274a079d3e6fb2e15");
+        var pkX = Convert.FromHexString(
+            "859edb06eff389b27dce59844570216223593d4ba32d9abac8cd049040ef6534");
+        var expectedSs = Convert.FromHexString(
+            "d2df0522128f09dd8e2c92b1e905c793d8f57a54c3da25861f10bf4ca613e384");
+
+        var computedSs = XWingKem.ComputeCombiner(ssM, ssX, ctX, pkX);
+
+        Assert.Equal(expectedSs, computedSs);
+    }
 }

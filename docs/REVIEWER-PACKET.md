@@ -80,7 +80,7 @@ intentional tradeoff, or an open question. Each is labelled:
 | Header vs file signature domain separation | **RESOLVED in 0.5** — distinct prefixes (preserved through 0.6) | spec §6.2; rationale §11.6 |
 | Unsigned files have no authenticity, incl. whole-payload erasure-to-empty | **ACCEPTED v1 tradeoff** — unsigned ≡ no authenticity by definition; sign the file to detect it | THREAT-MODEL STRIDE rows; rationale §11.7 |
 | Streaming releases plaintext before final verification | **OPERATIONAL REQUIREMENT** — callers MUST honor the post-hoc result (`[MustUseReturnValue]`); Authenticated Mode is the buffered default | spec §6.4.2; `docs/STREAMING.md` |
-| Cross-impl KAT against the X-Wing draft's published test vector | **RESOLVED in 0.6.0-preview.2** — `impl/rust/pqf-writer/tests/xwing_draft_kat.rs` replays draft-connolly-cfrg-xwing-kem Appendix C example 1 through the same crypto stack PQF uses and asserts byte-equal `ss`. This KAT immediately caught a real bug (label position) in preview.1; see CHANGELOG. | `impl/rust/pqf-writer/tests/xwing_draft_kat.rs` |
+| Cross-impl KAT against the X-Wing draft's published test vector | **RESOLVED in 0.6.0-preview.2 (both impls)** — the X-Wing combiner is now validated against the published draft vector on both Rust (full KAT with deterministic ML-KEM in `impl/rust/pqf-writer/tests/xwing_draft_kat.rs`) and .NET (intermediate values from the same vector hard-coded in `tests/PostQuantum.FileFormat.Tests/Crypto/XWingKemTests.cs::XWingCombiner_MatchesPublishedDraftVector`). The Rust KAT covers the full encap path; the C# KAT covers the SHA3-256 invocation independently. This KAT immediately caught a real bug (label position) in preview.1; see CHANGELOG. | Both `xwing_draft_kat.rs` and `XWingKemTests.cs` |
 | Symbolic / machine-checked proof of the overall assembly | **OPEN at the assembly level** — X-Wing combiner is externally proven; the full PQF stack (X-Wing + per-recipient AEAD wrap + chunked AEAD + hybrid sigs + footer) is not yet end-to-end modelled. The pre-0.6 symbolic models in `spec/symbolic/` were specific to the old combiner and are marked superseded | spec §13; `spec/symbolic/README.md` |
 
 ## How to reproduce the evidence
@@ -165,16 +165,15 @@ to a "10/10" review artifact:
    AEAD with `is_final` AAD binding, footer reconciliation, hybrid
    signature construction with domain separation). This is the single
    highest-value remaining step.
-2. **A C# port of the X-Wing draft KAT.** The Rust KAT
-   (`impl/rust/pqf-writer/tests/xwing_draft_kat.rs`) now validates the
-   combiner against the draft Appendix C vector and caught a real bug
-   in preview.1. Porting the same `(pk, eseed, ss)` fixture into a C#
-   `XWingKem_DraftKAT` test would make the .NET implementation
-   independently self-evidencing, not just transitively-validated by
-   sharing the formula with the Rust side. (Blocking issue: BouncyCastle
-   2.6.2 does not expose ML-KEM deterministic encap with explicit
-   randomness on its public API; the same trick the Rust KAT used
-   needs either a BC internal-API hookup or a custom fake-RNG bridge.)
+2. ~~A C# port of the X-Wing draft KAT.~~ **Closed in 0.6.0-preview.2.**
+   `XWingKemTests.XWingCombiner_MatchesPublishedDraftVector` pins the
+   four intermediate values `(ss_M, ss_X, ct_X, pk_X)` extracted from
+   the Rust KAT's deterministic encap path (the Rust KAT in turn
+   replays draft-connolly-cfrg-xwing-kem Appendix C example 1) and
+   asserts the C# `XWingKem.ComputeCombiner` reproduces the published
+   `ss = d2df0522…e384` byte-for-byte. Both `ct_X` and `pk_X` are
+   independently verifiable as the last 32 bytes of the draft's
+   published `ct` and `pk` respectively.
 3. **GPG-signed tags and signed release artifacts** (the maintainer holds
    the key; this packet is unsigned).
 4. A **published, attested release** with the SBOM + SLSA provenance the
