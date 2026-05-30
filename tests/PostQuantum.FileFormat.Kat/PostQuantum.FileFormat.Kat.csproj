@@ -2,7 +2,7 @@
 
   <!--
     NIST Known-Answer Test (KAT) cross-check harness. Reads KAT vector
-    files for ML-KEM-1024 and ML-DSA-87 from test-vectors/nist-kat/ and
+    files for ML-KEM-768 and ML-DSA-87 from test-vectors/nist-kat/ and
     runs them through PQF's crypto provider wrappers. KAT files
     themselves are fetched on demand by scripts/fetch-nist-kat.sh.
     Run with: dotnet run project tests/PostQuantum.FileFormat.Kat

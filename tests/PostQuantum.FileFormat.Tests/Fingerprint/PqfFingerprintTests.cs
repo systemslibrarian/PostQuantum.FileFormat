@@ -72,7 +72,7 @@ public sealed class PqfFingerprintTests
         var fp = PqfFingerprint.Compute(key);
         var hex = PqfFingerprint.ToHex(fp);
 
-        Assert.Equal("95d6ad1d6f4d825c4410bc95235c4d1c584566518e0a14b4ed5548d6b10124f9", hex);
+        Assert.Equal("a8629063ad0829c99e40b749090278c984cdee912886c7ca1768f10c3e03efe5", hex);
     }
 
     private static PqfPublicKey BuildPublicKey(byte x25519Fill, byte mlkemFill)
@@ -80,7 +80,7 @@ public sealed class PqfFingerprintTests
         var bytes = new byte[PqfPublicKey.CanonicalByteLength];
         bytes[0] = PqfPublicKey.Version;
         Array.Fill(bytes, x25519Fill, 1, 32);
-        Array.Fill(bytes, mlkemFill, 33, 1568);
+        Array.Fill(bytes, mlkemFill, 33, 1184);
         return PqfPublicKey.FromCanonicalBinary(bytes);
     }
 

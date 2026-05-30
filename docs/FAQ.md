@@ -7,7 +7,7 @@ isn't.
 ## "Should I use PQF for my data today?"
 
 **Probably not for irreplaceable data.** The spec is still draft
-v0.5; the wire format is not frozen. The reference implementation
+v0.3.1; the wire format is not frozen. The reference implementation
 has not undergone external cryptographic review. See
 [`docs/COMPATIBILITY.md`](./COMPATIBILITY.md) for the v1.0.0 freeze
 contract and the blocker list. PQF is appropriate for:
@@ -122,8 +122,8 @@ in `spec/PQF-SPEC-v1.md` §5.2.
 
 Roughly:
 
-- Header: ~2 KiB for a single-recipient unsigned file. Each extra
-  recipient adds ~1700 bytes (the ML-KEM-1024 ciphertext dominates).
+- Header: ~1.2 KiB for a single-recipient unsigned file. Each extra
+  recipient adds ~1200 bytes (the ML-KEM-768 ciphertext dominates).
 - Per chunk: 5 bytes frame + 16 bytes AEAD tag.
 - Footer: 20 bytes.
 - Hybrid signature (if signed): 4691 bytes × 2 (header sig + file sig)
@@ -143,10 +143,12 @@ scope.
 
 ## "What's the relationship to NIST's PQ standards?"
 
-PQF uses ML-KEM-1024 (FIPS 203) and ML-DSA-87 (FIPS 204), both
-standardized by NIST in 2024. PQF does not invent new primitives.
-The contribution is the wire format and the combiner construction;
-the cryptography itself is off-the-shelf NIST-approved primitives.
+PQF uses ML-KEM-768 (FIPS 203) and ML-DSA-87 (FIPS 204), both
+standardized by NIST in 2024, combined via X-Wing
+(draft-connolly-cfrg-xwing-kem). PQF does not invent new primitives,
+and as of spec v0.4.0 does not maintain its own KEM combiner — X-Wing
+is the standardized hybrid construction with external IND-CCA proofs
+in ROM/QROM. The contribution is the wire format around it.
 
 ## "I found a bug / want to report a vulnerability"
 

@@ -23,7 +23,7 @@ keywords:
 abstract: >-
   PQF is a specification and reference implementation for a hybrid
   post-quantum encrypted file format at rest. The construction combines
-  classical (X25519, Ed25519) and post-quantum (ML-KEM-1024, ML-DSA-87)
+  classical (X25519, Ed25519) and post-quantum (ML-KEM-768, ML-DSA-87)
   primitives so that confidentiality and authenticity each hold as long as
   one half of the hybrid remains unbroken. The format is fail-closed by
   design: any malformed structure, unknown field, reserved bit, length

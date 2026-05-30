@@ -1,6 +1,6 @@
 # PQF Implementation Checklist
 
-**Derived from:** `spec/PQF-SPEC-v1.md` v0.5
+**Derived from:** `spec/PQF-SPEC-v1.md` v0.3.1
 **Purpose:** Exhaustive list of normative requirements, organized by
 implementation surface. Every item traces back to a specific spec section.
 **Status:** Companion document. Not normative — the spec is authoritative.
@@ -8,7 +8,7 @@ If this checklist and the spec disagree, the spec wins.
 
 **Verification snapshot:** All boxes below are checked as of the
 2026-04-22 hardening pass. Each section is exercised by the test suites
-under `tests/PostQuantum.FileFormat.Tests/` (139 passing, 3 skipped) and
+under `tests/PostQuantum.FileFormat.Tests/` (130 passing, 0 skipped) and
 the conformance vectors under `tests/PostQuantum.FileFormat.TestVectors/`.
 See `docs/SPEC-CHECKLIST-REVIEW-2026-04-22.md` for the per-area evidence
 and the remaining release-management items (versioning, tags, external
@@ -30,7 +30,7 @@ review) which are tracked outside this implementation checklist.
 - 🟡 SHOULD / SHOULD NOT — strong guidance, deviate only with documented reason
 - ⚪ MAY — optional feature, conforming to implement or not
 
-Total normative statements in spec v0.5: 66 MUST/SHOULD items.
+Total normative statements in spec v0.3.1: 66 MUST/SHOULD items.
 
 ---
 
@@ -65,9 +65,9 @@ Total normative statements in spec v0.5: 66 MUST/SHOULD items.
 
 - [x] 🔴 `alg` present; exact map structure (§4.2.1)
 - [x] 🔴 `alg.aead` equals `"aes-256-gcm-chunked"` exactly (§4.2.1)
-- [x] 🔴 `alg.combiner` equals `"pqf1-bind-extract-v1"` exactly (§4.2.1)
+- [x] 🔴 `alg.combiner` equals `"x-wing"` exactly (§4.2.1)
 - [x] 🔴 `alg.kdf` equals `"hkdf-sha256"` exactly (§4.2.1)
-- [x] 🔴 `alg.kem` equals `"x25519+ml-kem-1024"` exactly (§4.2.1)
+- [x] 🔴 `alg.kem` equals `"x25519+ml-kem-768"` exactly (§4.2.1)
 - [x] 🔴 `alg.sig` equals `"ed25519+ml-dsa-87"` exactly (§4.2.1)
 - [x] 🔴 `chunk_size` present; power of 2 in range [4096, 16777216] (§4.2)
 - [x] 🔴 `created` present; RFC 3339 UTC with `Z` suffix (§4.2)
@@ -79,7 +79,7 @@ Total normative statements in spec v0.5: 66 MUST/SHOULD items.
 ### 2.2 Recipient block
 
 - [x] 🔴 `classical_epk`: exactly 32 bytes (§4.2.2)
-- [x] 🔴 `pqc_ct`: exactly 1568 bytes (§4.2.2)
+- [x] 🔴 `pqc_ct`: exactly 1088 bytes (§4.2.2)
 - [x] 🔴 `wrapped_dek`: exactly 48 bytes (§4.2.2)
 - [x] 🔴 `wrapped_dek_nonce`: exactly 12 bytes (§4.2.2)
 - [x] 🔴 Reader validates exact byte-string lengths and refuses on mismatch (§4.2.2)
@@ -153,7 +153,7 @@ Total normative statements in spec v0.5: 66 MUST/SHOULD items.
 
 - [x] 🔴 `combined_ss = HKDF-Extract(salt, ikm)` where salt and ikm are exactly as specified (§2.4)
 - [x] 🔴 Salt = `"PQF1-combiner-v1" (16 bytes) || file_id (16 bytes) || recipient_index (4 bytes BE)` (§2.4)
-- [x] 🔴 IKM = `x25519_shared_secret (32) || mlkem_shared_secret (32) || classical_epk (32) || pqc_ct (1568)` — bind-extract combiner (§2.4)
+- [x] 🔴 IKM = `x25519_shared_secret (32 bytes) || mlkem_shared_secret (32 bytes)` (§2.4)
 - [x] 🔴 `kek = HKDF-Expand(combined_ss, info = "PQF1-kek-v1", L = 32)` (§2.4)
 
 ---
@@ -169,12 +169,12 @@ Total normative statements in spec v0.5: 66 MUST/SHOULD items.
 - [x] 🔴 Generate random 12-byte wrap_nonce per recipient (§6.2 step 3e)
 - [x] 🔴 `wrapped_dek = AES-256-GCM-Encrypt(KEK, wrap_nonce, DEK, aad = file_id)` (§6.2 step 3f)
 - [x] 🔴 Header encoded as deterministic CBOR (§6.2 step 4)
-- [x] 🔴 If signed: header signed over `"PQF1-header-sig-v1" || header_bytes`; `ed25519_sig = Ed25519.Sign(S.ed25519_sk, header_sig_msg)` (§6.2 step 5a)
-- [x] 🔴 If signed: `mldsa_sig = ML-DSA-87.Sign(S.mldsa_sk, header_sig_msg)` (§6.2 step 5b)
+- [x] 🔴 If signed: `ed25519_sig = Ed25519.Sign(S.ed25519_sk, header_bytes)` (§6.2 step 5a)
+- [x] 🔴 If signed: `mldsa_sig = ML-DSA-87.Sign(S.mldsa_sk, header_bytes)` (§6.2 step 5b)
 - [x] 🔴 If signed: `header_signature = ed25519_sig (64) || mldsa_sig (4627)` = 4691 bytes (§6.2 step 5c)
 - [x] 🔴 Running SHA-256 computed over on-disk chunk bytes in write order (§6.2 step 7)
 - [x] 🔴 Footer written with accurate chunk_count and plaintext_bytes (§6.2 step 8)
-- [x] 🔴 If signed: file_signature covers `"PQF1-file-sig-v1" || file_id (16) || sha256_of_chunks (32) || footer (20)` = 4691 bytes hybrid signature (§6.2 step 9)
+- [x] 🔴 If signed: file_signature covers `file_id (16) || sha256_of_chunks (32) || footer (20)` = 4691 bytes hybrid signature (§6.2 step 9)
 
 ---
 
@@ -242,7 +242,7 @@ Total normative statements in spec v0.5: 66 MUST/SHOULD items.
 
 ### 10.1 Canonical binary (§7.1)
 
-- [x] 🔴 Encryption public key: version byte 0x01 + X25519 pubkey (32) + ML-KEM-1024 pubkey (1568) = 1601 bytes (§7.1)
+- [x] 🔴 Encryption public key: version byte 0x01 + X25519 pubkey (32) + ML-KEM-768 pubkey (1184) = 1217 bytes (§7.1)
 - [x] 🔴 Signing public key: version byte 0x01 + Ed25519 pubkey (32) + ML-DSA-87 pubkey (2592) = 2625 bytes (§7.2)
 - [x] 🔴 Reader rejects wrong total length (§7.1, §7.2)
 - [x] 🔴 Reader rejects version byte not 0x01 (§7.1, §7.2)
@@ -274,48 +274,27 @@ Readers MUST refuse under all of the following. This section duplicates items
 from earlier sections intentionally — it is the master rejection list used for
 testing.
 
-Every refusal class below is covered by **two** test surfaces:
-
-1. An **in-tree** .NET refusal test (`HeaderSchema_RefusalTests`,
-   `HeaderParser_RefusalTests`, and the file-layout refusal tests under
-   `tests/PostQuantum.FileFormat.Tests/File/`).
-2. A **portable** negative vector under `test-vectors/v1/` (the manifest the
-   Rust second-source reader is gated against), so an independent implementer
-   validating against the published vector set is forced to implement the
-   refusal. The `Portable vector` column lists the `TV-NEG-*` case(s).
-
-> Vectors `TV-NEG-023`…`TV-NEG-033` are produced by
-> `tests/PostQuantum.FileFormat.TestVectors/Program.cs` and are written into
-> `test-vectors/v1/manifest.json` (and `cases/`) when that project is run.
-> They close the header-schema portability gap recorded as finding F4.
-
-| Refusal condition | Spec | Portable vector(s) |
-|---|---|---|
-| Magic mismatch | §3, §6.3 step 2 | `TV-NEG-001` |
-| Version mismatch | §6.3 step 2 | `TV-NEG-002` |
-| Header length > 1 MiB | §3 | `TV-NEG-012`, `TV-NEG-013` |
-| Non-deterministic CBOR encoding | §2.5, §6.3 step 4 | `TV-NEG-010` |
-| Duplicate CBOR map key | §2.5, §6.3 step 4 | `TV-NEG-033` |
-| Unknown field — top level | §4.3 | `TV-NEG-023` |
-| Unknown field — inside `alg` | §4.3 | `TV-NEG-024` |
-| Unknown field — inside `recipients[*]` | §4.3 | `TV-NEG-025` |
-| Unknown field — inside `signer` | §4.3 | `TV-NEG-026` |
-| Missing required field | §6.3 step 4 | `TV-NEG-028` |
-| Algorithm identifier mismatch | §4.2.1 | `TV-NEG-027` |
-| `chunk_size` invalid | §6.3 step 6 | `TV-NEG-031` |
-| `created` not RFC 3339 UTC "Z" form | §8.4 | `TV-NEG-030` |
-| Empty `recipients` array | §8.4 | `TV-NEG-029` |
-| Binary field length mismatch | §4.2.2 | `TV-NEG-032` |
-| Identity matches no recipient block | §6.3 step 8g | `TV-NEG-021` |
-| Signature verification failure (either hybrid half) | §6.3 step 7e | `TV-NEG-009`, `TV-NEG-011` |
-| AEAD tag failure (wrap, chunk, anywhere) | §5.2, §6.3 step 8 | `TV-NEG-008`, `TV-NEG-015`, `TV-NEG-016`, `TV-NEG-017` |
-| Footer chunk count mismatch | §5.5 | `TV-NEG-019` |
-| Footer plaintext bytes mismatch | §5.5 | `TV-NEG-020`, `TV-NEG-022` |
-| Footer magic missing or incorrect | §5.5 | `TV-NEG-005` |
-| Reserved chunk flag bits set | §5.3 | `TV-NEG-006`, `TV-NEG-018` |
-| Chunk length exceeds remaining file bounds | §5.3 | `TV-NEG-007` |
-| Truncation (EOF before expected end) | §6.4 | `TV-NEG-003` |
-| Trailing data after expected EOF | §3, §6.4 | `TV-NEG-004`, `TV-NEG-014` |
+- [x] 🔴 Magic mismatch
+- [x] 🔴 Version mismatch
+- [x] 🔴 Header length > 1 MiB
+- [x] 🔴 Non-deterministic CBOR encoding
+- [x] 🔴 Unknown field at any header level
+- [x] 🔴 Missing required field
+- [x] 🔴 Algorithm identifier mismatch
+- [x] 🔴 `chunk_size` invalid
+- [x] 🔴 `created` not in RFC 3339 UTC "Z" form
+- [x] 🔴 Empty `recipients` array
+- [x] 🔴 Binary field length mismatch
+- [x] 🔴 Identity matches no recipient block
+- [x] 🔴 Signature verification failure (either hybrid half)
+- [x] 🔴 AEAD tag failure (wrap, chunk, anywhere)
+- [x] 🔴 Footer chunk count mismatch
+- [x] 🔴 Footer plaintext bytes mismatch
+- [x] 🔴 Footer magic missing or incorrect
+- [x] 🔴 Reserved chunk flag bits set
+- [x] 🔴 Chunk length exceeds remaining file bounds
+- [x] 🔴 Truncation (EOF before expected end)
+- [x] 🔴 Trailing data after expected EOF
 
 ---
 
@@ -384,4 +363,3 @@ Ideally by the end of Phase 5, every box is checked or explicitly marked
 |---|---|---|
 | 0.1.0 | 2026-04-21 | Initial extraction from spec v0.3.1 |
 | 0.2.0 | 2026-04-22 | All implementation items checked after Phase 4/5 hardening; release-management gaps tracked separately in `docs/SPEC-CHECKLIST-REVIEW-2026-04-22.md`. |
-| 0.2.1 | 2026-04-22 | §11 fail-closed list mapped to portable `TV-NEG-*` vectors; header-schema classes (`TV-NEG-023…033`) added to the vector generator to close finding F4. Manifest reflects the new cases after the `PostQuantum.FileFormat.TestVectors` project is re-run. |

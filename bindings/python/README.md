@@ -29,7 +29,7 @@ with open("secret.pqf", "rb") as f:
 
 # Parse the header without decrypting.
 header = pqf.parse_header(blob)
-print(header["alg"]["kem"])           # "x25519+ml-kem-1024"
+print(header["alg"]["kem"])           # "x25519+ml-kem-768"
 print(len(header["recipients"]))
 print("signed:", header["signer"] is not None)
 
@@ -41,7 +41,7 @@ identity = pqf.Identity.from_manifest(
     i["Id"],
     i["PublicKey"],
     i["X25519PrivateKey"],
-    i["MlKem1024PrivateKey"],
+    i["MlKem768PrivateKey"],
 )
 
 plaintext = pqf.decrypt(blob, identity)

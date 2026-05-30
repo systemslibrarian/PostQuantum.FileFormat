@@ -36,9 +36,9 @@ pqf-header = {
 
 pqf-alg = {
     "aead"     : "aes-256-gcm-chunked",
-    "combiner" : "pqf1-bind-extract-v1",
+    "combiner" : "x-wing",
     "kdf"      : "hkdf-sha256",
-    "kem"      : "x25519+ml-kem-1024",
+    "kem"      : "x25519+ml-kem-768",
     "sig"      : "ed25519+ml-dsa-87",
 }
 
@@ -62,8 +62,8 @@ pqf-file-id = bstr .size 16
 pqf-recipients = [+ pqf-recipient]
 
 pqf-recipient = {
-    "classical_epk"     : bstr .size 32,    ; X25519 ephemeral pk
-    "pqc_ct"            : bstr .size 1568,  ; ML-KEM-1024 ciphertext
+    "classical_epk"     : bstr .size 32,    ; X25519 ephemeral pk (X-Wing ct_X)
+    "pqc_ct"            : bstr .size 1088,  ; ML-KEM-768 ciphertext (X-Wing ct_M)
     "wrapped_dek"       : bstr .size 48,    ; 32-byte DEK + 16-byte GCM tag
     "wrapped_dek_nonce" : bstr .size 12,    ; AES-GCM nonce for wrap
 }

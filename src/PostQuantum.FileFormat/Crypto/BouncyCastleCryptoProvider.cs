@@ -86,20 +86,20 @@ public sealed class BouncyCastleCryptoProvider : ICryptoProvider
         }
     }
 
-    public (byte[] sk, byte[] pk) MlKem1024GenerateKeyPair()
+    public (byte[] sk, byte[] pk) MlKem768GenerateKeyPair()
     {
         var generator = new MLKemKeyPairGenerator();
-        generator.Init(new MLKemKeyGenerationParameters(CurrentRandom, MLKemParameters.ml_kem_1024));
+        generator.Init(new MLKemKeyGenerationParameters(CurrentRandom, MLKemParameters.ml_kem_768));
         AsymmetricCipherKeyPair kp = generator.GenerateKeyPair();
         var sk = (MLKemPrivateKeyParameters)kp.Private;
         var pk = (MLKemPublicKeyParameters)kp.Public;
         return (sk.GetEncoded(), pk.GetEncoded());
     }
 
-    public (byte[] sharedSecret, byte[] ciphertext) MlKem1024Encapsulate(ReadOnlySpan<byte> peerPk)
+    public (byte[] sharedSecret, byte[] ciphertext) MlKem768Encapsulate(ReadOnlySpan<byte> peerPk)
     {
-        var publicKey = MLKemPublicKeyParameters.FromEncoding(MLKemParameters.ml_kem_1024, peerPk.ToArray());
-        var encapsulator = new MLKemEncapsulator(MLKemParameters.ml_kem_1024);
+        var publicKey = MLKemPublicKeyParameters.FromEncoding(MLKemParameters.ml_kem_768, peerPk.ToArray());
+        var encapsulator = new MLKemEncapsulator(MLKemParameters.ml_kem_768);
         encapsulator.Init(new ParametersWithRandom(publicKey, CurrentRandom));
 
         var sharedSecret = new byte[encapsulator.SecretLength];
@@ -108,7 +108,7 @@ public sealed class BouncyCastleCryptoProvider : ICryptoProvider
         return (sharedSecret, ciphertext);
     }
 
-    public byte[] MlKem1024Decapsulate(ReadOnlySpan<byte> sk, ReadOnlySpan<byte> ciphertext)
+    public byte[] MlKem768Decapsulate(ReadOnlySpan<byte> sk, ReadOnlySpan<byte> ciphertext)
     {
         // See note on X25519DeriveSharedSecret: same pattern, zero the
         // intermediate managed copy of the private key in finally.
@@ -116,8 +116,8 @@ public sealed class BouncyCastleCryptoProvider : ICryptoProvider
         try
         {
             sk.CopyTo(skCopy);
-            var privateKey = MLKemPrivateKeyParameters.FromEncoding(MLKemParameters.ml_kem_1024, skCopy);
-            var decapsulator = new MLKemDecapsulator(MLKemParameters.ml_kem_1024);
+            var privateKey = MLKemPrivateKeyParameters.FromEncoding(MLKemParameters.ml_kem_768, skCopy);
+            var decapsulator = new MLKemDecapsulator(MLKemParameters.ml_kem_768);
             decapsulator.Init(privateKey);
 
             var sharedSecret = new byte[decapsulator.SecretLength];

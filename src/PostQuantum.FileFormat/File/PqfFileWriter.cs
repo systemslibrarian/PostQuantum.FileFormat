@@ -45,9 +45,6 @@ public static class PqfFileWriter
         bool deterministicSigning,
         CancellationToken cancellationToken)
     {
-        // This overload is intentionally internal because `randomness` and
-        // `deterministicSigning` exist only for deterministic test-vector
-        // generation. Production callers must use the public overload above.
         if (recipients is null || recipients.Count == 0)
         {
             throw new ArgumentException("At least one recipient is required", nameof(recipients));
@@ -93,10 +90,10 @@ public static class PqfFileWriter
         {
             for (var i = 0; i < recipients.Count; i++)
             {
-                var (classicalEpk, pqcCiphertext, kek) = hybridKem.Encapsulate(recipients[i], fileId, (uint)i);
+                var (classicalEpk, pqcCiphertext, kek) = hybridKem.Encapsulate(recipients[i]);
                 var (nonce, wrappedDek) = randomness is null
-                    ? DekWrapper.Wrap(kek, dek, fileId)
-                    : WrapDeterministic(kek, dek, fileId, randomness);
+                    ? DekWrapper.Wrap(kek, dek, fileId, (uint)i)
+                    : WrapDeterministic(kek, dek, fileId, (uint)i, randomness);
                 SecureZero.Clear(kek);
 
                 recipientMaterials.Add(new RecipientMaterial(classicalEpk, pqcCiphertext, wrappedDek, nonce));
@@ -221,11 +218,12 @@ public static class PqfFileWriter
         ReadOnlySpan<byte> kek,
         ReadOnlySpan<byte> dek,
         ReadOnlySpan<byte> fileId,
+        uint recipientIndex,
         InjectableRandomness randomness)
     {
         var nonce = new byte[DekWrapper.WrapNonceLength];
         randomness.Fill(nonce);
-        return DekWrapper.Wrap(kek, dek, fileId, nonce);
+        return DekWrapper.Wrap(kek, dek, fileId, recipientIndex, nonce);
     }
 
     private static CborValue BuildHeader(
@@ -238,9 +236,9 @@ public static class PqfFileWriter
         var algMap = CborValue.Map(new List<KeyValuePair<CborValue, CborValue>>
         {
             new(CborValue.Text("aead"), CborValue.Text("aes-256-gcm-chunked")),
-            new(CborValue.Text("combiner"), CborValue.Text("pqf1-bind-extract-v1")),
+            new(CborValue.Text("combiner"), CborValue.Text("x-wing")),
             new(CborValue.Text("kdf"), CborValue.Text("hkdf-sha256")),
-            new(CborValue.Text("kem"), CborValue.Text("x25519+ml-kem-1024")),
+            new(CborValue.Text("kem"), CborValue.Text("x25519+ml-kem-768")),
             new(CborValue.Text("sig"), CborValue.Text("ed25519+ml-dsa-87")),
         });
 

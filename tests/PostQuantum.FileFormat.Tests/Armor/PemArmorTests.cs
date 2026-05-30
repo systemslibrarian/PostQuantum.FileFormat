@@ -104,7 +104,7 @@ public sealed class PemArmorTests
         var bytes = new byte[PqfPublicKey.CanonicalByteLength];
         bytes[0] = PqfPublicKey.Version;
         Array.Fill(bytes, x25519Fill, 1, 32);
-        Array.Fill(bytes, mlkemFill, 33, 1568);
+        Array.Fill(bytes, mlkemFill, 33, 1184);
         return PqfPublicKey.FromCanonicalBinary(bytes);
     }
 

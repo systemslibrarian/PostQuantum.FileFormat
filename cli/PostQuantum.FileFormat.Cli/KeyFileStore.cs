@@ -29,7 +29,7 @@ internal static class KeyFileStore
             Type: "pqf-encryption-identity-v1",
             PublicKeyPem: publicPem,
             X25519PrivateKey: Convert.ToBase64String(identity.X25519PrivateKey.Span),
-            MlKem1024PrivateKey: Convert.ToBase64String(identity.MlKem1024PrivateKey.Span));
+            MlKem768PrivateKey: Convert.ToBase64String(identity.MlKem768PrivateKey.Span));
 
         await System.IO.File.WriteAllTextAsync(publicKeyPath, publicPem).ConfigureAwait(false);
         await WriteJsonAsync(privateKeyPath, privateFile).ConfigureAwait(false);
@@ -68,7 +68,7 @@ internal static class KeyFileStore
         return new PqfIdentity(
             publicKey,
             Convert.FromBase64String(file.X25519PrivateKey),
-            Convert.FromBase64String(file.MlKem1024PrivateKey));
+            Convert.FromBase64String(file.MlKem768PrivateKey));
     }
 
     public static async Task<PqfSigningIdentity> ReadSigningIdentityAsync(string path)
@@ -121,7 +121,7 @@ internal static class KeyFileStore
         string Type,
         string PublicKeyPem,
         string X25519PrivateKey,
-        string MlKem1024PrivateKey);
+        string MlKem768PrivateKey);
 
     private sealed record SigningIdentityFile(
         string Type,

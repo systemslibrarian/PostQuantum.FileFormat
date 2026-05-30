@@ -1,26 +1,27 @@
 //! Independent Rust writer for the PQF v1 file format.
 //!
-//! This crate now implements the **full unsigned-encrypt path** in
-//! Rust as a second-source for the .NET reference writer. The
+//! This crate implements the **full unsigned- and signed-encrypt path**
+//! in Rust as a second-source for the .NET reference writer. The
 //! cross-impl differential gate (CI: `differential-bidirectional.yml`)
-//! is what validates correctness: a container produced here is
-//! consumed by the .NET reference reader on every push, and any
-//! divergence is a wire-format defect.
+//! validates that a container produced here is consumed correctly by
+//! the .NET reference reader, and vice versa.
 //!
 //! What's implemented today:
 //!   - X25519 ephemeral keygen + ECDH with each recipient's classical pub.
-//!   - ML-KEM-1024 encapsulation against each recipient's PQ pub.
-//!   - HKDF-Extract combiner producing per-recipient KEK
-//!     (`pqf1-bind-extract-v1`, spec §2.4).
-//!   - AES-256-GCM wrap of the per-file DEK under each recipient KEK.
+//!   - ML-KEM-768 encapsulation against each recipient's PQ pub.
+//!   - **X-Wing combiner** (draft-connolly-cfrg-xwing-kem):
+//!     `KEK = SHA3-256("\.//^\" || ss_M || ss_X || ct_X || pk_X)`.
+//!   - AES-256-GCM wrap of the per-file DEK under each recipient KEK
+//!     with AAD `file_id (16) || recipient_index (u32 BE)` — preserving
+//!     per-file and per-recipient binding that the X-Wing combiner has
+//!     no salt slot for.
 //!   - Per-chunk HKDF-Expand derived chunk keys; AES-256-GCM with the
 //!     fixed zero nonce and AAD bound to `file_id || idx || is_final`.
 //!   - Footer construction with chunk_count + plaintext_bytes.
 //!   - Deterministic CBOR header build (RFC 8949 §4.2.2).
+//!   - Hybrid signing (Ed25519 + ML-DSA-87) when a SigningIdentity is supplied.
 //!
 //! What is NOT yet implemented:
-//!   - Hybrid signing (Ed25519 + ML-DSA-87). Reader supports
-//!     verification; writer signing is the next contribution.
 //!   - Streaming encrypt for plaintexts that don't fit in memory.
 //!   - Constant-time wrappers around the RustCrypto primitive calls.
 //!     (The reader has the same caveat; see docs/SIDE-CHANNEL-POSTURE.md.)
@@ -38,10 +39,11 @@ use ed25519_dalek::{Signer, SigningKey as EdSigningKey};
 use hkdf::Hkdf;
 use ml_dsa::{MlDsa87, SigningKey as MlDsaSigningKey};
 use ml_kem::kem::Encapsulate;
-use ml_kem::{Encoded, EncodedSizeUser, KemCore, MlKem1024};
+use ml_kem::{Encoded, EncodedSizeUser, KemCore, MlKem768};
 use rand::rngs::OsRng;
 use rand::RngCore;
 use sha2::{Digest, Sha256};
+use sha3::Sha3_256;
 use x25519_dalek::{EphemeralSecret, PublicKey as XPub};
 
 // Format constants — must match impl/rust/pqf-reader/src/reader.rs and the
@@ -50,16 +52,23 @@ const PQF_MAGIC: [u8; 4] = *b"PQF1";
 const PQF_VERSION: u16 = 0x0001;
 const FOOTER_MAGIC: [u8; 4] = *b"PQFE";
 const FOOTER_LEN: usize = 20;
-const COMBINER_SALT_PREFIX: &[u8] = b"PQF1-combiner-v1";
-const KEK_INFO: &[u8] = b"PQF1-kek-v1";
+
+// X-Wing combiner label per draft-connolly-cfrg-xwing-kem (the 6-byte ASCII
+// art "\.//^\"). MUST be these exact bytes — NOT the ASCII string "X-Wing".
+const XWING_LABEL: [u8; 6] = [0x5C, 0x2E, 0x2F, 0x2F, 0x5E, 0x5C];
+
+// Per-chunk HKDF-Expand label, unrelated to the KEM combiner and unchanged
+// from v0.3.x.
 const CHUNK_INFO_PREFIX: &[u8] = b"PQF1-chunk-v1";
 
-// Signature domain-separation labels (§6.2); must byte-match the reader.
+// Signature-message domain-separation prefixes (spec §6.2). Must
+// byte-match the .NET reference HybridSigner.
 const HEADER_SIG_DOMAIN: &[u8] = b"PQF1-header-sig-v1";
 const FILE_SIG_DOMAIN: &[u8] = b"PQF1-file-sig-v1";
 
 const X25519_PK_LEN: usize = 32;
-const MLKEM_PK_LEN: usize = 1568;
+// ML-KEM-768 public key length per FIPS 203.
+const MLKEM_PK_LEN: usize = 1184;
 const PUBKEY_VERSION: u8 = 0x01;
 const PUBKEY_TOTAL_LEN: usize = 1 + X25519_PK_LEN + MLKEM_PK_LEN;
 
@@ -69,8 +78,8 @@ const HYBRID_SIG_LEN: usize = ED25519_SIG_LEN + MLDSA87_SIG_LEN; // 4691
 const MLDSA87_PK_LEN: usize = 2592;
 const MLDSA87_SK_LEN: usize = 4896;
 
-/// A recipient public key in the canonical 1601-byte form:
-/// `0x01 || x25519_pub(32) || mlkem_1024_pub(1568)`.
+/// A recipient public key in the canonical 1217-byte form:
+/// `0x01 || x25519_pub(32) || mlkem_768_pub(1184)`.
 #[derive(Clone)]
 pub struct RecipientPublicKey {
     pub canonical: Vec<u8>,
@@ -214,8 +223,9 @@ fn encrypt_impl(
             .encrypt(nonce, Payload { msg: chunk_pt, aad: &aad })
             .map_err(|_| WriterError::NotYetImplemented("AEAD encrypt failed"))?;
 
-        // On-disk chunk frame is length(uint32 BE) || flags(uint8) || ct||tag
-        // (spec §5.3), matching the reader and the .NET reference writer.
+        // Chunk frame: length(4 BE) || flags(1) || ciphertext+tag.
+        // Spec §5.3. Length-first byte order matches both the .NET writer
+        // and the .NET / Rust readers.
         let flags: u8 = if is_final { 0x01 } else { 0x00 };
         let frame_start = out.len();
         out.extend_from_slice(&(ct.len() as u32).to_be_bytes());
@@ -224,6 +234,9 @@ fn encrypt_impl(
         // The reader's chunks_sha256 covers the full on-disk chunk frame
         // (5-byte prefix + ciphertext+tag).
         chunks_hasher.update(&out[frame_start..]);
+
+        // Zero per-chunk key from the working buffer.
+        for b in chunk_key.iter_mut() { *b = 0; }
 
         offset = end;
         chunk_idx += 1;
@@ -332,7 +345,7 @@ pub struct RecipientMaterial {
     pub wrapped_dek_nonce: [u8; 12],
 }
 
-/// Signer public key material (placeholder; signing path TODO).
+/// Signer public key material.
 pub struct SignerMaterial {
     pub classical_pub: [u8; 32],
     pub pqc_pub: Vec<u8>,
@@ -344,58 +357,55 @@ fn build_recipient_block(
     dek: &[u8; 32],
     recipient: &RecipientPublicKey,
 ) -> WriterResult<RecipientMaterial> {
-    // Ephemeral X25519 -> classical shared secret.
+    // Ephemeral X25519 -> classical shared secret. epk is X-Wing's ct_X.
     let eph_sec = EphemeralSecret::random_from_rng(&mut OsRng);
     let epk = XPub::from(&eph_sec);
     let peer_xpub = XPub::from(recipient.x25519_pub());
     let ss_classical = eph_sec.diffie_hellman(&peer_xpub);
 
-    // ML-KEM-1024 encapsulation -> PQ shared secret + ciphertext.
+    // ML-KEM-768 encapsulation -> PQ shared secret + ciphertext.
     let mlkem_pk_bytes = recipient.mlkem_pub();
-    let encoded: &Encoded<<MlKem1024 as KemCore>::EncapsulationKey> = mlkem_pk_bytes
+    let encoded: &Encoded<<MlKem768 as KemCore>::EncapsulationKey> = mlkem_pk_bytes
         .try_into()
         .map_err(|_| WriterError::RecipientFieldLength {
-            field: "ml_kem_1024_public_key",
+            field: "ml_kem_768_public_key",
             got: mlkem_pk_bytes.len(),
             want: MLKEM_PK_LEN,
         })?;
-    let ek = <<MlKem1024 as KemCore>::EncapsulationKey as EncodedSizeUser>::from_bytes(encoded);
+    let ek = <<MlKem768 as KemCore>::EncapsulationKey as EncodedSizeUser>::from_bytes(encoded);
     let (ct_arr, ss_pqc) = ek
         .encapsulate(&mut OsRng)
-        .map_err(|_| WriterError::NotYetImplemented("ML-KEM-1024 encapsulate failed"))?;
+        .map_err(|_| WriterError::NotYetImplemented("ML-KEM-768 encapsulate failed"))?;
     let pqc_ct: Vec<u8> = ct_arr.as_slice().to_vec();
 
-    // KEK = HKDF-Extract over IKM with salt = COMBINER_SALT_PREFIX || file_id
-    // || idx_be32, then HKDF-Expand with KEK_INFO.
-    // IKM = ss_x25519(32) || ss_mlkem(32) || classical_epk(32) || pqc_ct(1568)
-    // binds the KEK to the exact KEM transcript (bind-extract combiner, §2.4).
-    let mut salt = Vec::with_capacity(COMBINER_SALT_PREFIX.len() + 16 + 4);
-    salt.extend_from_slice(COMBINER_SALT_PREFIX);
-    salt.extend_from_slice(file_id);
-    salt.extend_from_slice(&idx.to_be_bytes());
-
-    let mut ikm = Vec::with_capacity(64 + 32 + 1568);
-    ikm.extend_from_slice(ss_classical.as_bytes());
-    ikm.extend_from_slice(ss_pqc.as_slice());
-    ikm.extend_from_slice(epk.as_bytes());
-    ikm.extend_from_slice(pqc_ct.as_slice());
-
-    let hk = Hkdf::<Sha256>::new(Some(&salt), &ikm);
+    // X-Wing combiner per draft-connolly-cfrg-xwing-kem:
+    //   KEK = SHA3-256(label || ss_M || ss_X || ct_X || pk_X)
+    // where label is the 6-byte literal "\.//^\".
+    let mut sha3 = <Sha3_256 as sha3::Digest>::new();
+    sha3.update(XWING_LABEL);
+    sha3.update(ss_pqc.as_slice());          // ss_M (32)
+    sha3.update(ss_classical.as_bytes());    // ss_X (32)
+    sha3.update(epk.as_bytes());             // ct_X (32)
+    sha3.update(&recipient.x25519_pub());    // pk_X (32)
+    let kek_arr = sha3.finalize();
     let mut kek = [0u8; 32];
-    hk.expand(KEK_INFO, &mut kek)
-        .map_err(|_| WriterError::NotYetImplemented("HKDF expand for KEK failed"))?;
+    kek.copy_from_slice(&kek_arr);
 
-    // Wrap DEK with AES-256-GCM, AAD = file_id, fresh random nonce.
+    // Wrap DEK with AES-256-GCM. AAD binds file instance AND recipient slot;
+    // X-Wing's combiner has no salt slot for these so the binding moves
+    // here. Nonce is fresh 12 random bytes.
     let mut nonce_bytes = [0u8; 12];
     OsRng.fill_bytes(&mut nonce_bytes);
+    let mut aad = [0u8; 20];
+    aad[..16].copy_from_slice(file_id);
+    aad[16..].copy_from_slice(&idx.to_be_bytes());
     let cipher = Aes256Gcm::new_from_slice(&kek).expect("KEK is 32 bytes");
     let nonce = Nonce::from_slice(&nonce_bytes);
     let wrapped = cipher
-        .encrypt(nonce, Payload { msg: dek, aad: file_id })
+        .encrypt(nonce, Payload { msg: dek, aad: &aad })
         .map_err(|_| WriterError::NotYetImplemented("DEK wrap failed"))?;
 
-    // Zeroize sensitive intermediates.
-    for b in ikm.iter_mut() { *b = 0; }
+    // Zero sensitive intermediates.
     for b in kek.iter_mut() { *b = 0; }
 
     Ok(RecipientMaterial {
@@ -453,5 +463,12 @@ mod tests {
         // 2026-05-25T14:30:00Z = unix seconds 1779719400
         assert_eq!(seconds_to_rfc3339(1_779_719_400), "2026-05-25T14:30:00Z");
         assert_eq!(seconds_to_rfc3339(0), "1970-01-01T00:00:00Z");
+    }
+
+    #[test]
+    fn xwing_label_is_exactly_the_six_bytes() {
+        // draft-connolly-cfrg-xwing-kem: the label is the literal 6-byte
+        // ASCII art "\.//^\" (NOT the string "X-Wing"). Pin the sequence.
+        assert_eq!(XWING_LABEL, [0x5C, 0x2E, 0x2F, 0x2F, 0x5E, 0x5C]);
     }
 }

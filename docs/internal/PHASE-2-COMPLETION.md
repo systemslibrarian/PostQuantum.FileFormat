@@ -26,7 +26,7 @@ The `PqfFileReader.ValidateAndParse()` method implements a sequential validation
    - `created`: RFC 3339 UTC timestamp with 'Z' suffix (no +05:00 offsets)
    - `file_id`: binary string, exactly 16 bytes
    - `recipients`: non-empty array of recipient blocks
-     - Each: classical_epk (32), pqc_ct (1568), wrapped_dek (48), wrapped_dek_nonce (12)
+     - Each: classical_epk (32), pqc_ct (1184), wrapped_dek (48), wrapped_dek_nonce (12)
    - `signer` (optional): classical_pub (32), pqc_pub (2592)
    - Refusal Reasons: `MissingRequiredField`, `UnknownHeaderField`, `BinaryFieldLengthMismatch`, `AlgorithmIdentifierMismatch`, `ChunkSizeInvalid`, `CreatedTimestampInvalid`, `RecipientsEmpty`
 
@@ -81,7 +81,7 @@ The `PqfFileReader.ValidateAndParse()` method implements a sequential validation
 ## Integration Points
 
 - **Phase 1**: CBOR encoder/decoder (`DeterministicCborEncoder`, `DeterministicCborValidator`) validates encoding determinism
-- **Phase 3+**: Decryption (ChaCha20-Poly1305 or AES-256-GCM), signature verification (Ed25519, ML-DSA-87), key exchange (X25519, ML-KEM-1024) deferred
+- **Phase 3+**: Decryption (ChaCha20-Poly1305 or AES-256-GCM), signature verification (Ed25519, ML-DSA-87), key exchange (X25519, ML-KEM-768) deferred
 - **Application Layer**: Exception handling can present human-readable refusal explanations per `PqfRefusalReason`
 
 ## Notable Edge Cases Covered

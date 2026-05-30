@@ -69,16 +69,16 @@ public sealed class ChunkAndFooter_RefusalTests
         var alg = PostQuantum.FileFormat.Cbor.CborValue.Map(new List<KeyValuePair<PostQuantum.FileFormat.Cbor.CborValue, PostQuantum.FileFormat.Cbor.CborValue>>
         {
             new(PostQuantum.FileFormat.Cbor.CborValue.Text("aead"), PostQuantum.FileFormat.Cbor.CborValue.Text("aes-256-gcm-chunked")),
-            new(PostQuantum.FileFormat.Cbor.CborValue.Text("combiner"), PostQuantum.FileFormat.Cbor.CborValue.Text("pqf1-bind-extract-v1")),
+            new(PostQuantum.FileFormat.Cbor.CborValue.Text("combiner"), PostQuantum.FileFormat.Cbor.CborValue.Text("x-wing")),
             new(PostQuantum.FileFormat.Cbor.CborValue.Text("kdf"), PostQuantum.FileFormat.Cbor.CborValue.Text("hkdf-sha256")),
-            new(PostQuantum.FileFormat.Cbor.CborValue.Text("kem"), PostQuantum.FileFormat.Cbor.CborValue.Text("x25519+ml-kem-1024")),
+            new(PostQuantum.FileFormat.Cbor.CborValue.Text("kem"), PostQuantum.FileFormat.Cbor.CborValue.Text("x25519+ml-kem-768")),
             new(PostQuantum.FileFormat.Cbor.CborValue.Text("sig"), PostQuantum.FileFormat.Cbor.CborValue.Text("ed25519+ml-dsa-87")),
         });
 
         var recipient = PostQuantum.FileFormat.Cbor.CborValue.Map(new List<KeyValuePair<PostQuantum.FileFormat.Cbor.CborValue, PostQuantum.FileFormat.Cbor.CborValue>>
         {
             new(PostQuantum.FileFormat.Cbor.CborValue.Text("classical_epk"), PostQuantum.FileFormat.Cbor.CborValue.Bytes(new byte[32])),
-            new(PostQuantum.FileFormat.Cbor.CborValue.Text("pqc_ct"), PostQuantum.FileFormat.Cbor.CborValue.Bytes(new byte[1568])),
+            new(PostQuantum.FileFormat.Cbor.CborValue.Text("pqc_ct"), PostQuantum.FileFormat.Cbor.CborValue.Bytes(new byte[1088])),
             new(PostQuantum.FileFormat.Cbor.CborValue.Text("wrapped_dek"), PostQuantum.FileFormat.Cbor.CborValue.Bytes(new byte[48])),
             new(PostQuantum.FileFormat.Cbor.CborValue.Text("wrapped_dek_nonce"), PostQuantum.FileFormat.Cbor.CborValue.Bytes(new byte[12])),
         });
@@ -98,16 +98,16 @@ public sealed class ChunkAndFooter_RefusalTests
         var alg = PostQuantum.FileFormat.Cbor.CborValue.Map(new List<KeyValuePair<PostQuantum.FileFormat.Cbor.CborValue, PostQuantum.FileFormat.Cbor.CborValue>>
         {
             new(PostQuantum.FileFormat.Cbor.CborValue.Text("aead"), PostQuantum.FileFormat.Cbor.CborValue.Text("aes-256-gcm-chunked")),
-            new(PostQuantum.FileFormat.Cbor.CborValue.Text("combiner"), PostQuantum.FileFormat.Cbor.CborValue.Text("pqf1-bind-extract-v1")),
+            new(PostQuantum.FileFormat.Cbor.CborValue.Text("combiner"), PostQuantum.FileFormat.Cbor.CborValue.Text("x-wing")),
             new(PostQuantum.FileFormat.Cbor.CborValue.Text("kdf"), PostQuantum.FileFormat.Cbor.CborValue.Text("hkdf-sha256")),
-            new(PostQuantum.FileFormat.Cbor.CborValue.Text("kem"), PostQuantum.FileFormat.Cbor.CborValue.Text("x25519+ml-kem-1024")),
+            new(PostQuantum.FileFormat.Cbor.CborValue.Text("kem"), PostQuantum.FileFormat.Cbor.CborValue.Text("x25519+ml-kem-768")),
             new(PostQuantum.FileFormat.Cbor.CborValue.Text("sig"), PostQuantum.FileFormat.Cbor.CborValue.Text("ed25519+ml-dsa-87")),
         });
 
         var recipient = PostQuantum.FileFormat.Cbor.CborValue.Map(new List<KeyValuePair<PostQuantum.FileFormat.Cbor.CborValue, PostQuantum.FileFormat.Cbor.CborValue>>
         {
             new(PostQuantum.FileFormat.Cbor.CborValue.Text("classical_epk"), PostQuantum.FileFormat.Cbor.CborValue.Bytes(new byte[32])),
-            new(PostQuantum.FileFormat.Cbor.CborValue.Text("pqc_ct"), PostQuantum.FileFormat.Cbor.CborValue.Bytes(new byte[1568])),
+            new(PostQuantum.FileFormat.Cbor.CborValue.Text("pqc_ct"), PostQuantum.FileFormat.Cbor.CborValue.Bytes(new byte[1088])),
             new(PostQuantum.FileFormat.Cbor.CborValue.Text("wrapped_dek"), PostQuantum.FileFormat.Cbor.CborValue.Bytes(new byte[48])),
             new(PostQuantum.FileFormat.Cbor.CborValue.Text("wrapped_dek_nonce"), PostQuantum.FileFormat.Cbor.CborValue.Bytes(new byte[12])),
         });

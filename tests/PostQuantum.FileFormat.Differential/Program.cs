@@ -35,9 +35,7 @@ internal static class Program
         {
             switch (args[i])
             {
-                // Parse as long then wrap into int range: CI passes
-                // --seed $GITHUB_RUN_ID, an 11-digit value that overflows Int32.
-                case "--seed": seed = unchecked((int)long.Parse(args[++i])); break;
+                case "--seed": seed = int.Parse(args[++i]); break;
                 case "--count": count = int.Parse(args[++i]); break;
                 case "--out": outDir = args[++i]; break;
                 default:
@@ -67,7 +65,7 @@ internal static class Program
             Id = id.Name,
             PublicKey = Convert.ToBase64String(id.Identity.PublicKey.ToCanonicalBinary()),
             X25519PrivateKey = Convert.ToBase64String(id.Identity.X25519PrivateKey.ToArray()),
-            MlKem1024PrivateKey = Convert.ToBase64String(id.Identity.MlKem1024PrivateKey.ToArray()),
+            MlKem768PrivateKey = Convert.ToBase64String(id.Identity.MlKem768PrivateKey.ToArray()),
         }).ToList();
 
         var vectors = new List<object>();

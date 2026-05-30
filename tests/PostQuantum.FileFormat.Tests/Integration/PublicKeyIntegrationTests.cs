@@ -10,7 +10,7 @@ public sealed class PublicKeyIntegrationTests
     public void Integration_publicKey_roundtrips_through_canonical_pem_and_fingerprint()
     {
         var x25519 = Enumerable.Repeat((byte)0x42, 32).ToArray();
-        var mlkem = Enumerable.Repeat((byte)0x13, 1568).ToArray();
+        var mlkem = Enumerable.Repeat((byte)0x13, 1184).ToArray();
         var key = PqfPublicKey.FromCanonicalBinary(BuildBytes(PqfPublicKey.Version, x25519, mlkem));
 
         var pem = PemArmor.ArmorPublicKey(key);

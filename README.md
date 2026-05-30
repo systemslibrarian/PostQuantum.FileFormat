@@ -9,7 +9,7 @@ PQF is a specification and reference implementation for hybrid post-quantum encr
 [![NuGet](https://img.shields.io/nuget/vpre/PostQuantum.FileFormat.Cli.svg?label=nuget%20%28pqf%29)](https://www.nuget.org/packages/PostQuantum.FileFormat.Cli/)
 [![Downloads](https://img.shields.io/nuget/dt/PostQuantum.FileFormat.Cli.svg)](https://www.nuget.org/packages/PostQuantum.FileFormat.Cli/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Spec: draft v0.5](https://img.shields.io/badge/spec-draft%20v0.5-orange.svg)](spec/PQF-SPEC-v1.md)
+[![Spec: draft v0.4.0](https://img.shields.io/badge/spec-draft%20v0.4.0-orange.svg)](spec/PQF-SPEC-v1.md)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/systemslibrarian/PostQuantum.FileFormat/badge)](https://securityscorecards.dev/viewer/?uri=github.com/systemslibrarian/PostQuantum.FileFormat)
 [![codecov](https://codecov.io/gh/systemslibrarian/PostQuantum.FileFormat/branch/main/graph/badge.svg)](https://codecov.io/gh/systemslibrarian/PostQuantum.FileFormat)
 [![REUSE compliant](https://img.shields.io/badge/REUSE-compliant-success.svg)](LICENSE)
@@ -31,7 +31,7 @@ pqf inspect  --in secret.pqf
 pqf decrypt  --in secret.pqf --out secret.dec.pdf --identity alice.key.json --mode authenticated
 ```
 
-> **Preview:** `pqf` is published as `0.4.0-preview.*`. The wire format is now draft v0.5 (combiner + signature binding hardened, cross-incompatible with 0.4) — files produced by previews are not guaranteed to be readable by `v1.0.0`.
+> **Preview:** `pqf` is published as `0.4.0-preview.*`. The wire format is draft v0.4.0 (X-Wing + ML-KEM-768) and is **wire-incompatible** with v0.3.x previews. Files produced by previews are not guaranteed to be readable by `v1.0.0`.
 
 ## How to try it
 
@@ -72,7 +72,7 @@ To clean up: `cd ~ && rm -rf /tmp/pqf-demo`.
 
 ## What this project is
 
-- A **file format specification** ([spec/PQF-SPEC-v1.md](spec/PQF-SPEC-v1.md), draft v0.5).
+- A **file format specification** ([spec/PQF-SPEC-v1.md](spec/PQF-SPEC-v1.md), draft v0.4.0).
 - A **reference implementation** in .NET 8 ([src/PostQuantum.FileFormat](src/PostQuantum.FileFormat)).
 - A **command-line tool**, `pqf` ([cli/PostQuantum.FileFormat.Cli](cli/PostQuantum.FileFormat.Cli)).
 - A **deterministic-encoding, fail-closed parser** with no recovery paths.
@@ -89,7 +89,7 @@ To clean up: `cd ~ && rm -rf /tmp/pqf-demo`.
 ## Core properties
 
 - **Fail-closed by design:** any malformed structure, unknown field, reserved bit, length mismatch, or integrity failure results in immediate refusal with a typed error. There are no best-effort or permissive parsing paths.
-- **Hybrid post-quantum encryption:** X25519 + ML-KEM-1024, combined through HKDF-SHA256 (`pqf1-bind-extract-v1`).
+- **Hybrid post-quantum encryption:** **X-Wing** (X25519 + ML-KEM-768) per draft-connolly-cfrg-xwing-kem, with external IND-CCA proofs in ROM/QROM (Barbosa et al., 2024). No bespoke combiner.
 - **Hybrid signatures (optional):** Ed25519 + ML-DSA-87, fixed 4691-byte concatenated layout. If signed, both halves must verify.
 - **Deterministic CBOR header** per RFC 8949 §4.2.2. Non-deterministic encodings are refused.
 - **Chunked AES-256-GCM payload** with per-chunk HKDF-derived keys, fixed zero nonce, and AAD binding `file_id || chunk_index || is_final`.
@@ -97,7 +97,6 @@ To clean up: `cd ~ && rm -rf /tmp/pqf-demo`.
 - **Two decryption modes:**
   - *Authenticated Mode* (default): verifies the file signature (when present) and footer before releasing any plaintext to the caller.
   - *Streaming Mode*: releases verified chunks as they are read, with explicit, non-silent post-hoc signaling if the footer or file signature fails to verify. Streaming failures cannot be silently ignored by the caller.
-    **Do not trust streamed plaintext until final verification reports success.**
 - **Fail-closed validation:** unknown fields, length mismatches, reserved bits, truncation, trailing bytes, and any algorithm deviation are refused. There are no permissive paths.
 
 ## 60-second example
@@ -141,7 +140,7 @@ The resulting `.pqf` file is a self-contained encrypted container: it bundles re
 
 ```
 spec/                            Format definition and design rationale
-  PQF-SPEC-v1.md                 Normative specification (v0.5 draft)
+  PQF-SPEC-v1.md                 Normative specification (v0.3.1 draft)
   PQF-DESIGN-RATIONALE-v1.md     Why the spec is what it is
   ietf/                          Internet-Draft skeleton (work in progress)
 src/PostQuantum.FileFormat/      Reference .NET implementation
@@ -182,24 +181,6 @@ CODE_OF_CONDUCT.md               Contributor Covenant 2.1
 - **MUST-level enforcement.** Every `MUST` in the spec corresponds to a refusal path in the reader, exercised by negative test vectors and refusal-test suites.
 - **No silent recovery.** There are no "best effort" paths. Any deviation from the spec terminates processing with an explicit, typed error.
 - **Conformance is testable.** [SPEC-CHECKLIST.md](SPEC-CHECKLIST.md) enumerates the normative items. The implementation is gated against committed test vectors under [tests/PostQuantum.FileFormat.TestVectors](tests/PostQuantum.FileFormat.TestVectors).
-
-## Conformance
-
-Run this command from the repository root to validate a reader implementation against the committed v1 vector set:
-
-```bash
-cargo run --release --bin pqf-conformance --manifest-path impl/rust/pqf-reader/Cargo.toml -- test-vectors/v1
-```
-
-Prerequisites:
-
-- Rust toolchain (`cargo`) installed.
-- Repository checked out with `test-vectors/v1` present.
-
-Pass/fail behavior:
-
-- Pass: command exits `0` and reports all vectors as pass.
-- Fail: command exits non-zero and prints each failing vector ID/reason.
 
 ## Performance
 
@@ -246,16 +227,16 @@ every N — that's the design working.
 
 ## Status
 
-- **Status:** Experimental. Specification is at draft v0.5.
+- **Status:** Experimental. Specification is at draft v0.3.1.
 - **Not externally audited.** No independent cryptographic review has been performed.
 - **Not recommended for irreplaceable data.** The byte format is frozen only at v1.0.0; drafts may produce files that are not readable by the final release.
 - **Latest preview:** [`v0.4.0-preview.2`](https://github.com/systemslibrarian/PostQuantum.FileFormat/releases/tag/v0.4.0-preview.2) on `main`, published to NuGet as [`PostQuantum.FileFormat.Cli`](https://www.nuget.org/packages/PostQuantum.FileFormat.Cli).
 
 | Component | State |
 |---|---|
-| Specification | Draft v0.5 |
+| Specification | Draft v0.3.1 |
 | Reference implementation (.NET) | Phases 1–5 complete on `main`, CI green |
-| Test vectors | v1 set (positive + negative) committed; full-set byte-reproducibility gated in CI (signed vectors via FIPS 204 deterministic signing) |
+| Test vectors | v1 set (positive + negative) committed; reproducibility gated on the unsigned subset |
 | CLI (`pqf`) | `keygen`, `encrypt`, `decrypt`, `inspect`, `fingerprint`; published as `0.4.0-preview.2` on NuGet.org |
 | Second-language implementation | Rust reader in `impl/rust/pqf-reader` + cross-impl conformance gate in CI |
 | Parser fuzz harness | `tests/PostQuantum.FileFormat.Fuzz` (CBOR / header / streaming targets); 60-second CI smoke pass |
@@ -283,7 +264,7 @@ optional extension, and the parser is fail-closed by construction.
 | Parser stance | Fail-closed, no recovery paths | Strict | Historically permissive | Strict | N/A (library, not a container) |
 | Multi-recipient in one file | Yes | Yes | Yes | No (per-key API) | No |
 | Streaming vs authenticated mode contract | Both, explicit non-silent failure signaling | Streaming | Streaming | API-level | API-level |
-| Spec frozen? | Draft v0.5 (v1.0.0 target) | Stable | Stable (RFC) | Stable (Google) | Stable |
+| Spec frozen? | Draft v0.3.1 (v1.0.0 target) | Stable | Stable (RFC) | Stable (Google) | Stable |
 | External cryptographic audit | Not yet (review wanted) | Multiple reviews | Decades of scrutiny | Google + audits | Multiple reviews |
 
 If you want a stable, audited classical format today, **age** is the right
@@ -301,19 +282,18 @@ PQF is **spec-first, not implementation-first.** The specification is the source
 
 PQF is explicitly seeking review from cryptographers and post-quantum implementers on the following normative sections of [spec/PQF-SPEC-v1.md](spec/PQF-SPEC-v1.md):
 
-- **§2.4** — Hybrid KEM combiner construction (HKDF salt/IKM layout, label binding). Note: the spec uses two distinct strings here — `pqf1-bind-extract-v1` is the algorithm-identifier value placed in the CBOR header field `alg.combiner`; `PQF1-combiner-v1` is the literal byte prefix of the HKDF salt. Both are intentional; the in-tree reference implementation lives in [`HkdfCombiner.cs`](src/PostQuantum.FileFormat/Crypto/HkdfCombiner.cs).
+- **§2.4** — Hybrid KEM combiner construction (HKDF salt/IKM layout, label binding). Note: the spec uses two distinct strings here — `pqf1-concat-extract-v1` is the algorithm-identifier value placed in the CBOR header field `alg.combiner`; `PQF1-combiner-v1` is the literal byte prefix of the HKDF salt. Both are intentional; the in-tree reference implementation lives in [`HkdfCombiner.cs`](src/PostQuantum.FileFormat/Crypto/HkdfCombiner.cs).
 - **§5.2** — Per-chunk AEAD construction and AAD binding (`file_id || chunk_index || is_final`).
 - **§6.2 step 9** — File-signature coverage composition (`file_id || sha256(chunks) || footer`).
 - **§6.3 step 7** — ML-KEM implicit-rejection timing and recipient-trial constant-time posture.
 - **§6.4** — Authenticated vs Streaming Mode failure-signaling contract.
 
-A running list of spec-level questions the author would value review on — such as whether the footer should be AEAD-bound on unsigned files, and a machine-checked proof of the combiner assembly — lives in [`spec/PQF-DESIGN-RATIONALE-v1.md` §11](./spec/PQF-DESIGN-RATIONALE-v1.md#11-open-questions-the-author-acknowledges). (The combiner ciphertext-binding and signature domain-separation questions were **resolved in draft 0.5**.)
+A running list of spec-level questions the author would value review on — including the open question of whether header-signature and file-signature messages should carry distinct domain-separation prefixes (§6.2), and whether the footer should be AEAD-bound on unsigned files — lives in [`spec/PQF-DESIGN-RATIONALE-v1.md` §11](./spec/PQF-DESIGN-RATIONALE-v1.md#11-open-questions-the-author-acknowledges).
 
 If you find an issue, please open a [GitHub Issue](https://github.com/systemslibrarian/PostQuantum.FileFormat/issues) or start a thread under [Discussions](https://github.com/systemslibrarian/PostQuantum.FileFormat/discussions). Reproducible refusal cases are especially welcome and will be folded into the negative test-vector set.
 
 ## Where to go next
 
-- [`docs/REVIEWER-PACKET.md`](./docs/REVIEWER-PACKET.md) — **start here if you are reviewing PQF.** One frozen target, the disposition of every v1 protocol debt, and the exact commands to reproduce all conformance evidence.
 - [`spec/PQF-SPEC-v1.md`](./spec/PQF-SPEC-v1.md) — the authoritative format specification and conformance rules.
 - [`spec/PQF-DESIGN-RATIONALE-v1.md`](./spec/PQF-DESIGN-RATIONALE-v1.md) — why the spec is what it is; recommended reading before reviewing the format.
 - [`spec/ietf/draft-clark-pqf-00.md`](./spec/ietf/draft-clark-pqf-00.md) — kramdown-rfc Internet-Draft skeleton, work in progress.

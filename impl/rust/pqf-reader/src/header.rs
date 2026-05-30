@@ -21,23 +21,12 @@ const KNOWN_TOP_FIELDS: &[&str] = &[
     "signer",
 ];
 
-// The exact algorithm identifiers a conformant PQF v1 header carries. A
-// successfully parsed `Header` is guaranteed to match these (the parser refuses
-// any other values), so consumers that want to display the algorithm suite can
-// rely on these constants instead of re-deriving — and stay in sync if the
-// suite ever changes. Exposed via the crate root.
-pub const ALG_AEAD: &str = "aes-256-gcm-chunked";
-pub const ALG_COMBINER: &str = "pqf1-bind-extract-v1";
-pub const ALG_KDF: &str = "hkdf-sha256";
-pub const ALG_KEM: &str = "x25519+ml-kem-1024";
-pub const ALG_SIG: &str = "ed25519+ml-dsa-87";
-
 const ALG_REQUIRED: &[(&str, &str)] = &[
-    ("aead", ALG_AEAD),
-    ("combiner", ALG_COMBINER),
-    ("kdf", ALG_KDF),
-    ("kem", ALG_KEM),
-    ("sig", ALG_SIG),
+    ("aead", "aes-256-gcm-chunked"),
+    ("combiner", "x-wing"),
+    ("kdf", "hkdf-sha256"),
+    ("kem", "x25519+ml-kem-768"),
+    ("sig", "ed25519+ml-dsa-87"),
 ];
 
 const RECIPIENT_FIELDS: &[&str] = &["classical_epk", "pqc_ct", "wrapped_dek", "wrapped_dek_nonce"];
@@ -45,7 +34,8 @@ const SIGNER_FIELDS: &[&str] = &["classical_pub", "pqc_pub"];
 
 // Spec §4.4 fixed binary lengths
 const X25519_EPK_LEN: usize = 32;
-const MLKEM1024_CT_LEN: usize = 1568;
+// ML-KEM-768 ciphertext length per FIPS 203 + spec §4.2.2 under v0.4.0.
+pub(crate) const MLKEM768_CT_LEN: usize = 1088;
 const WRAPPED_DEK_LEN: usize = 48;
 const WRAPPED_DEK_NONCE_LEN: usize = 12;
 const ED25519_PUB_LEN: usize = 32;
@@ -57,6 +47,7 @@ const MAX_CHUNK_SIZE: u64 = 16 * 1024 * 1024;
 
 #[derive(Debug, Clone)]
 pub struct Header {
+    pub alg: Alg,
     pub file_id: [u8; FILE_ID_LEN],
     pub chunk_size: u64,
     pub created: String,
@@ -64,10 +55,23 @@ pub struct Header {
     pub signer: Option<SignerEntry>,
 }
 
+/// Validated algorithm identifiers from the header. Because v1 mandates
+/// exact-match values for every alg-map field, these are effectively
+/// fixed at parse time — but we populate them from the actually-validated
+/// CBOR so bindings can surface the on-disk values, not project constants.
+#[derive(Debug, Clone)]
+pub struct Alg {
+    pub aead: String,
+    pub combiner: String,
+    pub kdf: String,
+    pub kem: String,
+    pub sig: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct RecipientEntry {
     pub classical_epk: [u8; X25519_EPK_LEN],
-    pub pqc_ct: Vec<u8>, // 1568 bytes
+    pub pqc_ct: Vec<u8>, // 1088 bytes (ML-KEM-768 ciphertext, X-Wing ct_M)
     pub wrapped_dek: [u8; WRAPPED_DEK_LEN],
     pub wrapped_dek_nonce: [u8; WRAPPED_DEK_NONCE_LEN],
 }
@@ -92,7 +96,7 @@ pub fn parse(value: CborValue) -> Result<Header> {
         }
     }
 
-    parse_alg(&map["alg"])?;
+    let alg = parse_alg(&map["alg"])?;
 
     let chunk_size = match &map["chunk_size"] {
         CborValue::Uint(v) => *v,
@@ -160,6 +164,7 @@ pub fn parse(value: CborValue) -> Result<Header> {
     };
 
     Ok(Header {
+        alg,
         file_id,
         chunk_size,
         created,
@@ -168,7 +173,7 @@ pub fn parse(value: CborValue) -> Result<Header> {
     })
 }
 
-fn parse_alg(value: &CborValue) -> Result<()> {
+fn parse_alg(value: &CborValue) -> Result<Alg> {
     let entries = match value {
         CborValue::Map(e) => e,
         _ => {
@@ -198,7 +203,20 @@ fn parse_alg(value: &CborValue) -> Result<()> {
             }
         }
     }
-    Ok(())
+    // Every value is exact-match-validated above, so we can build the
+    // returned struct directly from the validated strings. Cloning the
+    // already-stored expected strings keeps the on-disk and in-struct
+    // values identical by construction.
+    let pick = |k: &str| -> String {
+        ALG_REQUIRED.iter().find(|(kk, _)| *kk == k).map(|(_, v)| (*v).to_string()).unwrap_or_default()
+    };
+    Ok(Alg {
+        aead: pick("aead"),
+        combiner: pick("combiner"),
+        kdf: pick("kdf"),
+        kem: pick("kem"),
+        sig: pick("sig"),
+    })
 }
 
 fn parse_recipient(value: &CborValue, idx: usize) -> Result<RecipientEntry> {
@@ -236,11 +254,11 @@ fn parse_recipient(value: &CborValue, idx: usize) -> Result<RecipientEntry> {
     classical_epk.copy_from_slice(classical_epk_bytes);
 
     let pqc_ct = expect_bytes(map["pqc_ct"], "pqc_ct")?;
-    if pqc_ct.len() != MLKEM1024_CT_LEN {
+    if pqc_ct.len() != MLKEM768_CT_LEN {
         return Err(PqfError::new(
             RefusalReason::BinaryFieldLengthMismatch,
             format!(
-                "recipients[{idx}].pqc_ct length {} != {MLKEM1024_CT_LEN}",
+                "recipients[{idx}].pqc_ct length {} != {MLKEM768_CT_LEN}",
                 pqc_ct.len()
             ),
         ));

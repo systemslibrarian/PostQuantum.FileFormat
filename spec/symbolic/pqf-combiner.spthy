@@ -1,9 +1,15 @@
 /*
- * pqf-combiner.spthy — Symbolic model of the PQF hybrid KEM combiner.
+ * pqf-combiner.spthy — Symbolic model of PQF's LEGACY hybrid KEM combiner.
+ *
+ * **SUPERSEDED** as of spec v0.4.0 (2026-05-30). PQF now uses the X-Wing
+ * combiner (draft-connolly-cfrg-xwing-kem), which has external IND-CCA
+ * proofs in ROM and QROM (Barbosa et al., 2024) — there is no longer a
+ * PQF-specific combiner to model. This file is retained for historical
+ * audit-trail purposes only. See README.md.
  *
  * Captures the abstract structure of `pqf1-concat-extract-v1` (PQF spec
- * §2.4): sender performs an ephemeral X25519 agreement and an ML-KEM
- * encapsulation against the recipient's long-term public key, then
+ * §2.4 pre-v0.4.0): sender performs an ephemeral X25519 agreement and an
+ * ML-KEM encapsulation against the recipient's long-term public key, then
  * HKDF-extracts a KEK from the concatenation of the two shared secrets,
  * and AES-GCM-wraps a freshly-sampled DEK under that KEK.
  *

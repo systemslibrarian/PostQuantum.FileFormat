@@ -78,7 +78,7 @@ internal static class Program
             byte[] recovered;
             try
             {
-                recovered = provider.MlKem1024Decapsulate(sk, ct);
+                recovered = provider.MlKem768Decapsulate(sk, ct);
             }
             catch (Exception ex)
             {

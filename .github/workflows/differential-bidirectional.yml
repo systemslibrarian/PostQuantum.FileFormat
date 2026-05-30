@@ -86,7 +86,7 @@ jobs:
             keygen --type encrypt \
               --public-out  /tmp/recipient.pub.pem \
               --private-out /tmp/recipient.key.json
-          # Convert PEM-armored public key to canonical 1601-byte binary so
+          # Convert PEM-armored public key to canonical 1217-byte binary so
           # the Rust writer can consume it. The CLI exposes this via the
           # `fingerprint --raw` path or similar; if not, we decode the PEM
           # base64 body here.

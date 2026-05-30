@@ -109,7 +109,7 @@ var negatives = new List<(string id, byte[] bytes, string reason, bool postHoc, 
     // Unknown field inside the 'signer' map (spec §4.3) — requires a signed base.
     ("TV-NEG-026", MutateHeader(baseSigned, e => AddNestedMapField(e, "signer", "x_unknown_signer", CborValue.Bytes(new byte[1]))), nameof(PqfRefusalReason.UnknownHeaderField), false, "id-a"),
     // Algorithm identifier mismatch: a non-conformant KEM value (spec §4.2.1).
-    ("TV-NEG-027", MutateHeader(baseUnsigned, e => SetNestedMapField(e, "alg", "kem", CborValue.Text("x25519+ml-kem-768"))), nameof(PqfRefusalReason.AlgorithmIdentifierMismatch), false, "id-a"),
+    ("TV-NEG-027", MutateHeader(baseUnsigned, e => SetNestedMapField(e, "alg", "kem", CborValue.Text("x25519+ml-kem-1024"))), nameof(PqfRefusalReason.AlgorithmIdentifierMismatch), false, "id-a"),
     // Missing required field: drop 'chunk_size' (spec §6.3 step 4).
     ("TV-NEG-028", MutateHeader(baseUnsigned, e => RemoveKey(e, "chunk_size")), nameof(PqfRefusalReason.MissingRequiredField), false, "id-a"),
     // Empty recipients array (spec §8.4).
@@ -142,8 +142,8 @@ var manifest = new VectorManifest(
     Version: "v1",
     Identities:
     [
-        new IdentityManifest("id-a", Convert.ToBase64String(idA.PublicKey.ToCanonicalBinary()), Convert.ToBase64String(idA.X25519PrivateKey.ToArray()), Convert.ToBase64String(idA.MlKem1024PrivateKey.ToArray())),
-        new IdentityManifest("id-b", Convert.ToBase64String(idB.PublicKey.ToCanonicalBinary()), Convert.ToBase64String(idB.X25519PrivateKey.ToArray()), Convert.ToBase64String(idB.MlKem1024PrivateKey.ToArray())),
+        new IdentityManifest("id-a", Convert.ToBase64String(idA.PublicKey.ToCanonicalBinary()), Convert.ToBase64String(idA.X25519PrivateKey.ToArray()), Convert.ToBase64String(idA.MlKem768PrivateKey.ToArray())),
+        new IdentityManifest("id-b", Convert.ToBase64String(idB.PublicKey.ToCanonicalBinary()), Convert.ToBase64String(idB.X25519PrivateKey.ToArray()), Convert.ToBase64String(idB.MlKem768PrivateKey.ToArray())),
     ],
     Vectors: vectors);
 
@@ -429,7 +429,7 @@ internal sealed record IdentityManifest(
     string Id,
     string PublicKey,
     string X25519PrivateKey,
-    string MlKem1024PrivateKey);
+    string MlKem768PrivateKey);
 
 internal sealed record VectorManifestEntry(
     string Id,

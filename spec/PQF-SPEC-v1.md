@@ -1,7 +1,7 @@
 # PQF File Format — Specification, Version 1
 
 **Status:** DRAFT / EXPERIMENTAL — do not use to protect irreplaceable data.
-**Document version:** 0.5 (2026-05-30)
+**Document version:** 0.4.0 (2026-05-30)
 **Editor:** Paul Clark <paul@systemslibrarian.dev>
 **License:** MIT
 
@@ -11,41 +11,34 @@
 
 ## Change log
 
-**0.5 (2026-05-30)** — **Wire-format change** (draft; cross-incompatible with
-0.4 files). Two cryptographic binding hardenings, signalled by the new
-`alg.combiner` identifier `pqf1-bind-extract-v1`; a 0.5 reader refuses 0.4
-files and vice versa at the algorithm-identifier check.
+**0.4.0 (2026-05-30)** — Hybrid KEM cut over from PQF's in-house
+HKDF-concatenate-then-extract combiner to **X-Wing**
+(draft-connolly-cfrg-xwing-kem). This is a wire-incompatible break from
+0.3.x and invalidates every previously published v1 test vector. Changes:
 
-- §2.4: **Bind-extract combiner.** The HKDF-Extract IKM now folds the X25519
-  ephemeral public key (`classical_epk`) and the ML-KEM-1024 ciphertext
-  (`pqc_ct`) alongside the two shared secrets, binding the KEK to the exact
-  KEM transcript (closes the ciphertext/ephemeral substitution gap previously
-  left to the wrap-AEAD check alone; prior finding F2 / X-Wing-parity item).
-- §6.2/§6.3/§6.4.1: **Signature domain separation.** The header signature and
-  file signature are now computed over `"PQF1-header-sig-v1" || header_bytes`
-  and `"PQF1-file-sig-v1" || file_id || sha256_of_chunks || footer`
-  respectively, so the two signing contexts are explicitly disjoint (closes
-  prior finding F1 / open question §11.6).
-
-No change to the wire *layout* (field order, lengths, version byte, CBOR
-structure); only the bytes fed to the KDF and the signer changed.
-
-**0.4 (2026-05-29)** — Reviewer-readiness milestone (pre-review hardening pass,
-findings F1–F9). No wire-format, parameter, or normative-MUST changes; the
-version bump marks the review milestone, not a normative revision. Spec-document
-change in this milestone:
-
-- §2: Added an explicit **parameter-set conformance** paragraph stating that
-  ML-KEM-768 / ML-DSA-65 (Category 3) are non-conformant for PQF v1 and that a
-  v1 reader MUST refuse any other parameter set. This sharpens — it does not
-  add to — the existing "readers that do not support all primitives MUST
-  refuse" requirement.
-
-  Companion changes shipped in the same milestone live outside this document:
-  the X-Wing/CFRG combiner deviations and v1.1 parity roadmap in
-  PQF-DESIGN-RATIONALE-v1.md §2.5/§11.9, the signed-vs-unsigned truncation
-  rows in docs/THREAT-MODEL.md, docs/SECURITY-OVERVIEW.md, and conformance
-  vectors TV-NEG-023…033 (47 total).
+- §2.1 KEM: ML-KEM-1024 → **ML-KEM-768** (Category 3). X-Wing is defined
+  for ML-KEM-768; staying on -1024 would require a non-standard variant
+  combiner and defeat the purpose of adopting X-Wing.
+- §2.4 Combiner: the PQF in-house `pqf1-concat-extract-v1` HKDF combiner
+  is **removed**. KEM-level shared-secret derivation is now
+  `SHA3-256( "\.//^\" || ss_M || ss_X || ct_X || pk_X )` exactly as
+  specified by draft-connolly-cfrg-xwing-kem.
+- §4.2.1 `alg.combiner` exact-match value: `"pqf1-concat-extract-v1"`
+  → `"x-wing"`. `alg.kem` exact-match value:
+  `"x25519+ml-kem-1024"` → `"x25519+ml-kem-768"`.
+- §4.2.2 `pqc_ct` byte-string size: 1568 → **1088** (ML-KEM-768 ciphertext).
+- §7.1 canonical encryption public-key total length: 1601 → **1217**
+  bytes (version byte + 32 X25519 + 1184 ML-KEM-768).
+- §2.4 / §8.7 Per-recipient binding migrates from the (now-deleted)
+  HKDF salt slot into the DEK-wrap AEAD's associated data:
+  `aad = file_id (16) || recipient_index (uint32 BE)`. Cross-recipient
+  isolation and per-file binding are preserved at the AEAD layer.
+- The old §13 caveats "No formal security proof" and "combiner rationale
+  wording" are obsolete for the KEM combiner: X-Wing has IND-CCA proofs
+  in ROM/QROM (Barbosa et al., 2024).
+- File format version stays **v1** (magic `PQF1`, version uint16
+  `0x0001`); only the alg-map exact-match values and the recipient
+  byte-string sizes change. Pre-1.0.0 §10.4 freeze does not yet apply.
 
 **0.3.1 (2026-04-21)** — Polishing pass following ChatGPT v0.3.0 review. Six
 tightening fixes, no design changes:
@@ -152,20 +145,23 @@ to be interpreted as described in RFC 2119 and RFC 8174.
 Version 1 uses exactly the following primitives. Readers that do not support
 all of them MUST refuse to process version 1 files.
 
-**Parameter-set conformance.** PQF v1 is defined over exactly the suite in
-§2.1-§2.4. ML-KEM-768 and ML-DSA-65 (Category 3) are non-conformant for
-PQF v1: a v1 reader MUST refuse a header whose `alg.kem` or `alg.sig` names
-any other parameter set. This is deliberate for long-horizon file-at-rest
-confidentiality. Interactive/transport protocols with shorter lifetimes are
-out of scope for this format and may make different parameter choices in
-their own specifications.
-
 ### 2.1 Key encapsulation
 
-Hybrid KEM: **X25519 + ML-KEM-1024**
+Hybrid KEM: **X-Wing** (X25519 + ML-KEM-768), per
+draft-connolly-cfrg-xwing-kem.
 
-- **X25519:** RFC 7748. Shared secret length: 32 bytes.
-- **ML-KEM-1024:** FIPS 203. NIST Category 5. Public key: 1568 bytes. Ciphertext: 1568 bytes. Shared secret: 32 bytes.
+- **X25519:** RFC 7748. Public key: 32 bytes. "Ciphertext" (ephemeral
+  public key): 32 bytes. Shared secret: 32 bytes.
+- **ML-KEM-768:** FIPS 203. NIST Category 3. Public key: 1184 bytes.
+  Ciphertext: 1088 bytes. Shared secret: 32 bytes.
+
+X-Wing combines the two into a 32-byte hybrid shared secret using a
+single SHA-3-256 invocation that binds both KEM shared secrets, the
+X25519 ephemeral public key, and the recipient's X25519 long-term public
+key (§2.4). The construction has IND-CCA proofs in the ROM and QROM
+(Barbosa et al., 2024).
+
+Implementations of v1 0.4.0 are wire-incompatible with v1 0.3.x.
 
 ### 2.2 Signatures
 
@@ -182,46 +178,53 @@ Signatures are OPTIONAL per file. Processing mode semantics (§6.4) apply.
 
 **AES-256-GCM**, chunked (§5).
 
-### 2.4 Key derivation and combiner
+### 2.4 KEM combiner and per-recipient binding
 
-**HKDF-SHA-256** (RFC 5869).
-
-The combiner binds the file instance and recipient index into the
-HKDF-Extract salt, and binds the full KEM transcript — both shared secrets,
-the X25519 ephemeral public key (`classical_epk`), and the ML-KEM-1024
-ciphertext (`pqc_ct`) — into the HKDF-Extract IKM:
+The hybrid KEM shared secret (the recipient's KEK) is derived by the
+**X-Wing combiner** per draft-connolly-cfrg-xwing-kem:
 
 ```
-combined_ss = HKDF-Extract(
-    salt = "PQF1-combiner-v1" || file_id (16 bytes) || recipient_index (4 bytes BE),
-    ikm  = x25519_shared_secret (32 bytes)
-        || mlkem_shared_secret (32 bytes)
-        || classical_epk (32 bytes)
-        || pqc_ct (1568 bytes)
-)
-
-kek = HKDF-Expand(
-    prk  = combined_ss,
-    info = "PQF1-kek-v1",
-    L    = 32
-)
+KEK = SHA3-256( XWING_LABEL || ss_M || ss_X || ct_X || pk_X )
 ```
 
-`classical_epk` and `pqc_ct` are the same bytes that appear in this recipient's
-header block (§4.2.2), so both writer and reader have them at KEK-derivation
-time.
+where:
 
-**Rationale.** This is the "bind-extract" combiner (`pqf1-bind-extract-v1`). It
-extends the concatenate-then-extract pattern of
-draft-ounsworth-cfrg-kem-combiners by folding the ML-KEM ciphertext and the
-X25519 ephemeral public key into the Extract input, in the spirit of X-Wing's
-transcript binding. This binds the KEK to the exact ciphertext/ephemeral that
-produced it: a substituted `pqc_ct` or `classical_epk` yields a different KEK,
-closing the substitution gap that earlier drafts left to the wrap-AEAD check
-alone. The construction is **not** byte-equivalent to X-Wing (HKDF-SHA-256 vs.
-SHA3-256; PQF additionally folds `pqc_ct`, which ML-KEM's FO transform already
-binds to its shared secret), so X-Wing's proofs do not transfer unchanged. This
-document does not claim a formal proof for the exact overall assembly.
+- `XWING_LABEL` is the 6 bytes `5C 2E 2F 2F 5E 5C` (the ASCII art
+  "\.//^\"). Implementations MUST use this exact byte sequence. It is
+  NOT the ASCII string "X-Wing".
+- `ss_M` is the 32-byte ML-KEM-768 shared secret.
+- `ss_X` is the 32-byte X25519 shared secret.
+- `ct_X` is the 32-byte X25519 ephemeral public key (carried on the wire
+  as `recipients[i].classical_epk`; X-Wing names this `ct_X` because in
+  X-Wing's KEM model it plays the role of an ephemeral KEM ciphertext).
+- `pk_X` is the recipient's 32-byte X25519 long-term public key (from
+  the recipient's canonical public key).
+
+KEK length is 32 bytes.
+
+**Rationale.** This is the construction defined and analyzed in
+draft-connolly-cfrg-xwing-kem and proven IND-CCA in the ROM and QROM by
+Barbosa et al. (2024). Critically for hybrid-confidentiality: the SHA-3
+input binds both `ct_X` and `pk_X`, so the KEK is cryptographically tied
+to the specific ciphertext and the specific recipient public key. PQF
+0.3.x used an in-house HKDF-concatenate-then-extract combiner that
+omitted this binding; that construction is removed.
+
+**Per-file and per-recipient binding.** X-Wing's combiner has no salt
+slot for the file instance or the recipient slot. PQF binds those at the
+DEK-wrap AEAD layer instead:
+
+```
+wrapped_dek_aad = file_id (16 bytes) || recipient_index (uint32 BE)
+```
+
+A KEK derived for recipient `i` cannot unwrap the DEK wrap of recipient
+`j` (AADs differ), and a KEK from one file cannot unwrap any other
+file's wrap (`file_id` differs). The cross-recipient and cross-file
+isolation properties asserted in §8.5 and §8.7 are therefore preserved.
+
+The per-chunk HKDF expansion that derives `chunk_key` from the DEK
+(§5.2) is unchanged.
 
 ### 2.5 Header encoding
 
@@ -312,9 +315,9 @@ CBOR binary. A machine-checkable CDDL counterpart lives at
 {
   "alg": {
     "aead":     "aes-256-gcm-chunked",
-    "combiner": "pqf1-bind-extract-v1",
+    "combiner": "x-wing",
     "kdf":      "hkdf-sha256",
-    "kem":      "x25519+ml-kem-1024",
+    "kem":      "x25519+ml-kem-768",
     "sig":      "ed25519+ml-dsa-87"
   },
   "chunk_size": 65536,
@@ -323,7 +326,7 @@ CBOR binary. A machine-checkable CDDL counterpart lives at
   "recipients": [
     {
       "classical_epk":     h'...' (32 bytes),
-      "pqc_ct":            h'...' (1568 bytes),
+      "pqc_ct":            h'...' (1088 bytes),
       "wrapped_dek":       h'...' (48 bytes),
       "wrapped_dek_nonce": h'...' (12 bytes)
     }
@@ -354,9 +357,9 @@ fields are permitted inside `alg`.
 | Field | Required value |
 |---|---|
 | `aead` | `"aes-256-gcm-chunked"` |
-| `combiner` | `"pqf1-bind-extract-v1"` |
+| `combiner` | `"x-wing"` |
 | `kdf` | `"hkdf-sha256"` |
-| `kem` | `"x25519+ml-kem-1024"` |
+| `kem` | `"x25519+ml-kem-768"` |
 | `sig` | `"ed25519+ml-dsa-87"` |
 
 #### 4.2.2 `recipients` array
@@ -365,8 +368,8 @@ Each recipient is a CBOR map containing exactly four fields:
 
 | Field | CBOR type | Size | Meaning |
 |---|---|---|---|
-| `classical_epk` | bstr | 32 bytes | Sender's ephemeral X25519 public key for this recipient |
-| `pqc_ct` | bstr | 1568 bytes | ML-KEM-1024 ciphertext |
+| `classical_epk` | bstr | 32 bytes | Sender's ephemeral X25519 public key for this recipient (X-Wing `ct_X`) |
+| `pqc_ct` | bstr | 1088 bytes | ML-KEM-768 ciphertext (X-Wing `ct_M`) |
 | `wrapped_dek` | bstr | 48 bytes | 32-byte DEK ciphertext + 16-byte GCM tag |
 | `wrapped_dek_nonce` | bstr | 12 bytes | Nonce for DEK-wrapping AES-GCM |
 
@@ -517,10 +520,9 @@ optionally a signing identity `S`:
    f. `wrapped_dek_i = AES-256-GCM-Encrypt(KEK, wrap_nonce_i, DEK, aad = file_id)`.
    g. Append recipient block to header.
 4. Encode the header as deterministic CBOR per §2.5.
-5. If `S` is provided, sign the domain-separated header message
-   `header_sig_msg = "PQF1-header-sig-v1" || header_bytes`:
-   a. `ed25519_header_sig = Ed25519.Sign(S.ed25519_sk, header_sig_msg)`.
-   b. `mldsa_header_sig = ML-DSA-87.Sign(S.mldsa_sk, header_sig_msg)`.
+5. If `S` is provided:
+   a. `ed25519_header_sig = Ed25519.Sign(S.ed25519_sk, header_bytes)`.
+   b. `mldsa_header_sig = ML-DSA-87.Sign(S.mldsa_sk, header_bytes)`.
    c. `header_signature = ed25519_header_sig || mldsa_header_sig` (4691 bytes).
 6. Write file prefix: magic + version + header_length + header + (header_signature if signed).
 7. Stream payload as chunks per §5. Compute a running SHA-256 over all
@@ -528,9 +530,9 @@ optionally a signing identity `S`:
    the order written). Track `chunk_count` and `total_plaintext_bytes`.
 8. Write footer: `"PQFE" || chunk_count (uint64 BE) || total_plaintext_bytes (uint64 BE)`.
 9. If `S` is provided: compute and write `file_signature` (4691 bytes) as
-   hybrid signature over the domain-separated file message:
+   hybrid signature over:
    ```
-   "PQF1-file-sig-v1" || file_id (16) || sha256_of_chunks (32) || footer (20 bytes)
+   file_id (16) || sha256_of_chunks (32) || footer (20 bytes)
    ```
 
 ### 6.3 Decryption (common steps)
@@ -551,10 +553,9 @@ Both processing modes (§6.4) share these initial steps:
 7. If `signer` is present:
    a. Read 4691 bytes as `header_signature`.
    b. Split: `ed25519_sig = header_signature[0..64]`, `mldsa_sig = header_signature[64..4691]`.
-   c. Let `header_sig_msg = "PQF1-header-sig-v1" || header_bytes`.
-   d. Verify `Ed25519.Verify(signer.classical_pub, header_sig_msg, ed25519_sig)`.
-   e. Verify `ML-DSA-87.Verify(signer.pqc_pub, header_sig_msg, mldsa_sig)`.
-   f. If EITHER verification fails, refuse.
+   c. Verify `Ed25519.Verify(signer.classical_pub, header_bytes, ed25519_sig)`.
+   d. Verify `ML-DSA-87.Verify(signer.pqc_pub, header_bytes, mldsa_sig)`.
+   e. If EITHER verification fails, refuse.
 8. For each recipient block in order, attempt to recover the DEK with the
    reader's identity `I`:
    a. `ss_classical = X25519(I.x25519_sk, epk_i)`.
@@ -592,7 +593,7 @@ Procedure:
    `total_plaintext_bytes` match observed values. If either mismatches,
    refuse. Retain the exact 20 footer bytes as read from the file.
 5. If signed: read 4691-byte file_signature, split as in §6.3 step 7b,
-   verify both halves over `"PQF1-file-sig-v1" || file_id || sha256_of_chunks || footer_bytes`,
+   verify both halves over `file_id || sha256_of_chunks || footer_bytes`,
    where `footer_bytes` is the exact 20 bytes retained in step 4. The bytes
    used in signature verification MUST be byte-identical to the bytes read
    from the file; re-encoding the parsed footer values is non-conforming.
@@ -668,11 +669,11 @@ The canonical binary encoding of a PQF hybrid encryption public key is:
 +-----------------------------------+
 | X25519 public key: 32 bytes       |
 +-----------------------------------+
-| ML-KEM-1024 public key: 1568 bytes|
+| ML-KEM-768 public key: 1184 bytes |
 +-----------------------------------+
 ```
 
-Total: **1601 bytes**.
+Total: **1217 bytes**.
 
 The canonical binary encoding of a PQF hybrid signing public key is:
 
@@ -757,7 +758,7 @@ format will be defined in v2.
 Confidentiality holds if AT LEAST ONE of:
 
 - The ECDLP on Curve25519 remains hard (classical)
-- ML-KEM-1024 remains IND-CCA2 secure (post-quantum)
+- ML-KEM-768 remains IND-CCA2 secure (post-quantum)
 
 Sender authenticity (for signed files) holds if AT LEAST ONE of:
 
@@ -792,14 +793,11 @@ violate the corresponding property.
 
 When signed, PQF binds the following:
 
-- **Header signature** covers: `"PQF1-header-sig-v1" || header_bytes` —
-  algorithm identifiers, `chunk_size`, `created`, `file_id`, recipient list,
-  signer public keys.
-- **File signature** covers:
-  `"PQF1-file-sig-v1" || file_id || sha256(chunk_bytes) || footer`.
+- **Header signature** covers: algorithm identifiers, `chunk_size`, `created`,
+  `file_id`, recipient list, signer public keys.
+- **File signature** covers: `file_id || sha256(chunk_bytes) || footer`.
   Where `footer` is the full 20 bytes including the footer magic, chunk
-  count, and plaintext byte count. The two signatures carry distinct
-  domain-separation prefixes so neither can be replayed as the other.
+  count, and plaintext byte count.
 
 Together these prevent: header tampering, recipient substitution, chunk
 reordering, chunk insertion/deletion, truncation, and footer tampering.
@@ -832,10 +830,13 @@ Implementations MUST refuse a file under any of these conditions:
 
 ### 8.5 Replay and substitution
 
-`file_id` is included as AAD in every AEAD operation AND in the HKDF-Extract
-salt for KEK derivation. This binds DEK wrap and all chunks to the specific
-file instance at two independent layers. An attacker cannot splice chunks
-between files or replace recipient blocks across files.
+`file_id` is included as AAD in every AEAD operation: in the chunk AEAD
+(§5.2) and in the DEK-wrap AEAD (§2.4). This binds the DEK wrap and all
+chunks to the specific file instance. An attacker cannot splice chunks
+between files or replace recipient blocks across files. (In PQF 0.3.x
+this binding was layered: `file_id` was both in the HKDF-Extract salt
+and in the AEAD AAD. Under X-Wing the HKDF salt is gone, but the AEAD
+binding alone is sufficient for cross-file isolation.)
 
 ### 8.6 Downgrade resistance
 
@@ -846,10 +847,16 @@ not possible.
 
 ### 8.7 Multi-target and cross-recipient isolation
 
-Per-recipient KEK derivation binds `recipient_index` into the HKDF-Extract
-salt (§2.4). Each recipient obtains a cryptographically isolated KEK.
-Compromise of one recipient's identity does not reveal other recipients'
-KEKs.
+X-Wing's combiner binds the recipient's X25519 public key (`pk_X`) into
+the KDF input (§2.4), so each recipient's KEK is intrinsically tied to
+their own long-term key. In addition, the DEK-wrap AEAD's AAD includes
+`recipient_index` alongside `file_id`, so even if two recipient slots
+somehow derived the same KEK (they cannot under X-Wing because their
+`pk_X` differs), the wrapped-DEK tags would still mismatch on the wrong
+slot.
+
+Compromise of one recipient's identity does not reveal any other
+recipient's KEK or DEK.
 
 ### 8.8 Deniability semantics
 
@@ -995,7 +1002,7 @@ future versions of the v1 reference implementation.
 
 | Property | How |
 |---|---|
-| Confidentiality at rest (hybrid PQ) | §2.1 hybrid KEM, §2.3 AEAD, §2.4 combiner |
+| Confidentiality at rest (hybrid PQ) | §2.1 X-Wing (X25519+ML-KEM-768), §2.3 AEAD, §2.4 combiner |
 | Payload integrity | Per-chunk AEAD tags, footer validation |
 | Sender authenticity (optional) | §2.2 hybrid signatures |
 | Replay resistance across files | `file_id` in AAD and salt (§8.5) |
@@ -1116,7 +1123,7 @@ The `processing_mode` field MAY be `"authenticated"`, `"streaming"`, or
 `"either"`.
 
 Binary fixture format for decryption identities:
-`version (0x01) || x25519_sk (32) || x25519_pk (32) || mlkem_sk (3168) || mlkem_pk (1568)`
+`version (0x01) || x25519_sk (32) || x25519_pk (32) || mlkem_sk (2400) || mlkem_pk (1184)`
 
 Binary fixture format for signing identities:
 `version (0x01) || ed25519_sk (32) || ed25519_pk (32) || mldsa_sk (4896) || mldsa_pk (2592)`
@@ -1142,8 +1149,11 @@ to fail validation under v1 rules.
 - **ML-KEM and ML-DSA are young.** NIST standards finalized 2024. Cryptanalytic
   understanding continues to evolve. The hybrid construction mitigates but
   does not eliminate this risk.
-- **No formal security proof.** The overall assembly (combiner + recipient
-  derivation + AEAD + signatures + footer) is not formally modeled.
+- **No formal security proof of the overall assembly.** The KEM combiner
+  is X-Wing, which has external IND-CCA proofs in ROM/QROM (Barbosa et
+  al., 2024). The full PQF stack (X-Wing + per-recipient AEAD wrap +
+  chunked AEAD + hybrid signatures + footer) is not formally modeled
+  end-to-end.
 - **Canonical CBOR dependency.** Deterministic CBOR is a tighter surface than
   canonical JSON, but cross-implementation interop still requires careful
   library selection. Implementations MUST test against published vectors.
@@ -1172,8 +1182,10 @@ to fail validation under v1 rules.
 
 ### 14.2 Informative
 
+- draft-connolly-cfrg-xwing-kem — X-Wing hybrid KEM
+- Barbosa, Boyen, Connolly, Schwabe, Stehlé, Strub (2024) —
+  "X-Wing: The Hybrid KEM You've Been Looking For"
 - draft-ietf-pquip-hybrid-signature-spectrums
-- draft-ounsworth-cfrg-kem-combiners
 - age file format — https://age-encryption.org/v1
 - RFC 8152 / 9052 — COSE (for signed-CBOR prior art)
 

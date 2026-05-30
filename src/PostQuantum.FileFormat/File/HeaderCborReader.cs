@@ -94,9 +94,9 @@ internal static class HeaderCborReader
         var requiredAlgValues = new Dictionary<string, string>
         {
             ["aead"] = "aes-256-gcm-chunked",
-            ["combiner"] = "pqf1-bind-extract-v1",
+            ["combiner"] = "x-wing",
             ["kdf"] = "hkdf-sha256",
-            ["kem"] = "x25519+ml-kem-1024",
+            ["kem"] = "x25519+ml-kem-768",
             ["sig"] = "ed25519+ml-dsa-87",
         };
 
@@ -307,10 +307,10 @@ internal static class HeaderCborReader
                     recipient.ClassicalEpk = bytesValue.Value.ToArray();
                     break;
                 case "pqc_ct":
-                    if (bytesValue.Value.Length != 1568)
+                    if (bytesValue.Value.Length != 1088)
                         throw new PqfFileException(
                             PqfRefusalReason.BinaryFieldLengthMismatch,
-                            $"Field 'pqc_ct' must be 1568 bytes, got {bytesValue.Value.Length}");
+                            $"Field 'pqc_ct' must be 1088 bytes, got {bytesValue.Value.Length}");
                     recipient.PqcCt = bytesValue.Value.ToArray();
                     break;
                 case "wrapped_dek":

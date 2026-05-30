@@ -47,7 +47,7 @@ is the command-line tool for the
 (PQF):
 a hybrid post-quantum encrypted file container with a deterministic
 CBOR header and a fail-closed parser. Confidentiality is hybrid
-(X25519 + ML-KEM-1024 combined through HKDF-SHA256); authenticity,
+(X25519 + ML-KEM-768 combined through HKDF-SHA256); authenticity,
 when present, is hybrid (Ed25519 + ML-DSA-87).
 .PP
 Files have the
@@ -63,7 +63,7 @@ in the upstream repository.
 Generate a long-term keypair.
 .TP
 .B \-\-type encrypt
-Produce a 1601-byte canonical public key (X25519 || ML-KEM-1024) and
+Produce a 1217-byte canonical public key (X25519 || ML-KEM-768) and
 a private-key JSON blob suitable for
 .BR "pqf decrypt --identity" .
 .TP

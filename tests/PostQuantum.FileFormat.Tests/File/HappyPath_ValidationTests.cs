@@ -51,16 +51,16 @@ public sealed class HappyPath_ValidationTests
         var alg = CborValue.Map(new List<KeyValuePair<CborValue, CborValue>>
         {
             new(CborValue.Text("aead"), CborValue.Text("aes-256-gcm-chunked")),
-            new(CborValue.Text("combiner"), CborValue.Text("pqf1-bind-extract-v1")),
+            new(CborValue.Text("combiner"), CborValue.Text("x-wing")),
             new(CborValue.Text("kdf"), CborValue.Text("hkdf-sha256")),
-            new(CborValue.Text("kem"), CborValue.Text("x25519+ml-kem-1024")),
+            new(CborValue.Text("kem"), CborValue.Text("x25519+ml-kem-768")),
             new(CborValue.Text("sig"), CborValue.Text("ed25519+ml-dsa-87")),
         });
 
         var recipient = CborValue.Map(new List<KeyValuePair<CborValue, CborValue>>
         {
             new(CborValue.Text("classical_epk"), CborValue.Bytes(new byte[32])),
-            new(CborValue.Text("pqc_ct"), CborValue.Bytes(new byte[1568])),
+            new(CborValue.Text("pqc_ct"), CborValue.Bytes(new byte[1088])),
             new(CborValue.Text("wrapped_dek"), CborValue.Bytes(new byte[48])),
             new(CborValue.Text("wrapped_dek_nonce"), CborValue.Bytes(new byte[12])),
         });
@@ -80,16 +80,16 @@ public sealed class HappyPath_ValidationTests
         var alg = CborValue.Map(new List<KeyValuePair<CborValue, CborValue>>
         {
             new(CborValue.Text("aead"), CborValue.Text("aes-256-gcm-chunked")),
-            new(CborValue.Text("combiner"), CborValue.Text("pqf1-bind-extract-v1")),
+            new(CborValue.Text("combiner"), CborValue.Text("x-wing")),
             new(CborValue.Text("kdf"), CborValue.Text("hkdf-sha256")),
-            new(CborValue.Text("kem"), CborValue.Text("x25519+ml-kem-1024")),
+            new(CborValue.Text("kem"), CborValue.Text("x25519+ml-kem-768")),
             new(CborValue.Text("sig"), CborValue.Text("ed25519+ml-dsa-87")),
         });
 
         var recipient = CborValue.Map(new List<KeyValuePair<CborValue, CborValue>>
         {
             new(CborValue.Text("classical_epk"), CborValue.Bytes(new byte[32])),
-            new(CborValue.Text("pqc_ct"), CborValue.Bytes(new byte[1568])),
+            new(CborValue.Text("pqc_ct"), CborValue.Bytes(new byte[1088])),
             new(CborValue.Text("wrapped_dek"), CborValue.Bytes(new byte[48])),
             new(CborValue.Text("wrapped_dek_nonce"), CborValue.Bytes(new byte[12])),
         });
@@ -116,9 +116,9 @@ public sealed class HappyPath_ValidationTests
         var alg = CborValue.Map(new List<KeyValuePair<CborValue, CborValue>>
         {
             new(CborValue.Text("aead"), CborValue.Text("aes-256-gcm-chunked")),
-            new(CborValue.Text("combiner"), CborValue.Text("pqf1-bind-extract-v1")),
+            new(CborValue.Text("combiner"), CborValue.Text("x-wing")),
             new(CborValue.Text("kdf"), CborValue.Text("hkdf-sha256")),
-            new(CborValue.Text("kem"), CborValue.Text("x25519+ml-kem-1024")),
+            new(CborValue.Text("kem"), CborValue.Text("x25519+ml-kem-768")),
             new(CborValue.Text("sig"), CborValue.Text("ed25519+ml-dsa-87")),
         });
 
@@ -128,7 +128,7 @@ public sealed class HappyPath_ValidationTests
             recipients[i] = CborValue.Map(new List<KeyValuePair<CborValue, CborValue>>
             {
                 new(CborValue.Text("classical_epk"), CborValue.Bytes(new byte[32])),
-                new(CborValue.Text("pqc_ct"), CborValue.Bytes(new byte[1568])),
+                new(CborValue.Text("pqc_ct"), CborValue.Bytes(new byte[1088])),
                 new(CborValue.Text("wrapped_dek"), CborValue.Bytes(new byte[48])),
                 new(CborValue.Text("wrapped_dek_nonce"), CborValue.Bytes(new byte[12])),
             });
@@ -149,16 +149,16 @@ public sealed class HappyPath_ValidationTests
         var alg = CborValue.Map(new List<KeyValuePair<CborValue, CborValue>>
         {
             new(CborValue.Text("aead"), CborValue.Text("aes-256-gcm-chunked")),
-            new(CborValue.Text("combiner"), CborValue.Text("pqf1-bind-extract-v1")),
+            new(CborValue.Text("combiner"), CborValue.Text("x-wing")),
             new(CborValue.Text("kdf"), CborValue.Text("hkdf-sha256")),
-            new(CborValue.Text("kem"), CborValue.Text("x25519+ml-kem-1024")),
+            new(CborValue.Text("kem"), CborValue.Text("x25519+ml-kem-768")),
             new(CborValue.Text("sig"), CborValue.Text("ed25519+ml-dsa-87")),
         });
 
         var recipient = CborValue.Map(new List<KeyValuePair<CborValue, CborValue>>
         {
             new(CborValue.Text("classical_epk"), CborValue.Bytes(new byte[32])),
-            new(CborValue.Text("pqc_ct"), CborValue.Bytes(new byte[1568])),
+            new(CborValue.Text("pqc_ct"), CborValue.Bytes(new byte[1088])),
             new(CborValue.Text("wrapped_dek"), CborValue.Bytes(new byte[48])),
             new(CborValue.Text("wrapped_dek_nonce"), CborValue.Bytes(new byte[12])),
         });

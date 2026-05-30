@@ -13,7 +13,7 @@ gap. "Gap" is what would be needed to upgrade a claim from
 
 | Claim | Assumption | Evidence | Gap |
 |---|---|---|---|
-| **Confidentiality holds if X25519 OR ML-KEM-1024 remains unbroken.** | The hybrid combiner construction is correct. | Spec §2.4; reference impl `Crypto/HkdfCombiner.cs`; Rust reader `reader.rs` recipient-trial. | Formal proof in `spec/symbolic/`. The Tamarin lemma is stated, not proved. |
+| **Confidentiality holds if X25519 OR ML-KEM-768 remains unbroken.** | The hybrid combiner is X-Wing (draft-connolly-cfrg-xwing-kem), which has IND-CCA proofs in ROM and QROM. | Spec §2.4; reference impl `Crypto/XWingKem.cs`; Rust reader `reader.rs` recipient-trial; Barbosa et al. (2024) "X-Wing" paper. | None at the combiner layer (X-Wing has external proofs). End-to-end PQF stack is not yet formally modeled. |
 | **Per-chunk AEAD keys are unique.** | HKDF-Expand with the chunk index in the info string produces distinct keys per chunk. | Spec §5.2; reader and writer both bake the chunk index into the info string. | Symbolic model does not yet cover the per-chunk derivation. |
 | **Fixed zero AES-GCM nonce is safe.** | Each chunk key is used exactly once. | Spec §5.2 rationale; tested by `EncryptDecryptRoundtripTests`; cross-checked by the Rust reader. | None considered open; the construction follows NIST SP 800-38D's nonce-uniqueness rule trivially because of the per-chunk key. |
 
@@ -32,10 +32,8 @@ gap. "Gap" is what would be needed to upgrade a claim from
 | Claim | Assumption | Evidence | Gap |
 |---|---|---|---|
 | **Authentication requires BOTH Ed25519 and ML-DSA-87 to verify.** | Both halves are evaluated unconditionally. | `HybridSigner.Verify` uses bitwise `&` instead of short-circuit `&&` so both branches always run. Tested by `HybridSignerTests`. | None. |
-| **Header signature covers `"PQF1-header-sig-v1" ‖ header_bytes`.** | Spec §6.2 normative. | Both reference impl and Rust reader compute the same hash; the differential gate catches divergence. | None. |
-| **File signature covers `"PQF1-file-sig-v1" ‖ file_id ‖ sha256(chunks) ‖ footer`.** | Spec §6.2 step 9. | Reader: `AuthenticatedModeDecryptor` and `StreamingModeDecryptor`. Writer: `PqfFileWriter`, Rust `encrypt_to_bytes_signed`. Cross-impl differential gate. | None. |
-| **A header signature cannot be replayed as a file signature (or vice versa).** | Distinct domain-separation prefixes per spec §6.2 (draft 0.5). | `HybridSigner.Sign/Verify` domain param; `HybridSignerTests.Verify_fails_when_domain_differs`. | None. |
-| **The KEK is bound to the exact KEM ciphertext and ephemeral.** | Bind-extract combiner folds `classical_epk ‖ pqc_ct` into HKDF-Extract IKM (spec §2.4, draft 0.5). | `Crypto/HkdfCombiner.cs`; Rust `reader.rs`/`lib.rs`; `HkdfCombinerTests` asserts the KEK changes when ct/epk change. | Not a published proof; symbolic model is research-level. |
+| **Header signature covers the full header bytes.** | Spec §6.2 normative. | Both reference impl and Rust reader compute the same hash; the differential gate catches divergence. | None. |
+| **File signature covers `file_id ‖ sha256(chunks) ‖ footer`.** | Spec §6.2 step 9. | Reader: `AuthenticatedModeDecryptor` and `StreamingModeDecryptor`. Writer: `PqfFileWriter`, Rust `encrypt_to_bytes_signed`. Cross-impl differential gate. | The composition is one of the spec's open review questions (`PQF-DESIGN-RATIONALE-v1.md` §11). |
 | **Signed file regeneration is byte-deterministic.** | FIPS 204 deterministic-signing variant + RFC 8032 Ed25519. | `MlDsa87SignDeterministic` on `ICryptoProvider`. Test-vector regen + `git diff --exit-code` in CI. | None. |
 
 ## Implementation correctness

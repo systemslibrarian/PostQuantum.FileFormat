@@ -1,6 +1,9 @@
 (*
- * pqf-combiner.pv — ProVerif applied-pi-calculus model of the PQF
+ * pqf-combiner.pv — ProVerif applied-pi-calculus model of PQF's LEGACY
  * hybrid KEM combiner. Cross-checks the Tamarin model in pqf-combiner.spthy.
+ *
+ * **SUPERSEDED** as of spec v0.4.0 (2026-05-30). PQF now uses the X-Wing
+ * combiner (draft-connolly-cfrg-xwing-kem). See spec/symbolic/README.md.
  *
  * Same primitives, same property, different proof engine. ProVerif's
  * Horn-clause backend often discharges these properties automatically

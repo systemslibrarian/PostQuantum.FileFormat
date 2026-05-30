@@ -7,8 +7,9 @@ use ed25519_dalek::{Signature as EdSig, Verifier, VerifyingKey as EdVerifyingKey
 use hkdf::Hkdf;
 
 use ml_kem::kem::Decapsulate;
-use ml_kem::{Encoded, EncodedSizeUser, KemCore, MlKem1024};
+use ml_kem::{Encoded, EncodedSizeUser, KemCore, MlKem768};
 use sha2::{Digest, Sha256};
+use sha3::Sha3_256;
 use x25519_dalek::{PublicKey as XPub, StaticSecret as XSec};
 
 use crate::cbor;
@@ -26,14 +27,19 @@ const ED25519_SIG_LEN: usize = 64;
 const FOOTER_LEN: usize = 20;
 const FOOTER_MAGIC: [u8; 4] = *b"PQFE";
 
-// HKDF labels (must byte-match the .NET reference implementation).
-const COMBINER_SALT_PREFIX: &[u8] = b"PQF1-combiner-v1";
-const KEK_INFO: &[u8] = b"PQF1-kek-v1";
+// X-Wing combiner label per draft-connolly-cfrg-xwing-kem: the literal
+// 6-byte ASCII art "\.//^\". This is NOT the ASCII string "X-Wing".
+// Any deviation silently fails interop with conforming X-Wing impls.
+const XWING_LABEL: [u8; 6] = [0x5C, 0x2E, 0x2F, 0x2F, 0x5E, 0x5C];
+
+// Per-chunk HKDF expand label (unchanged from v0.3.x; this HKDF is for
+// chunk key derivation from the DEK and has nothing to do with the KEM
+// combiner).
 const CHUNK_INFO_PREFIX: &[u8] = b"PQF1-chunk-v1";
 
-// Signature domain-separation labels prepended to each signed message so the
-// header and file signatures are over disjoint, explicitly tagged inputs
-// (§6.2). Must byte-match the .NET reference implementation.
+// Signature-message domain-separation prefixes (spec §6.2). The header
+// signature and file signature use the same hybrid key but disjoint
+// pre-images by construction. Must byte-match HybridSigner in .NET.
 const HEADER_SIG_DOMAIN: &[u8] = b"PQF1-header-sig-v1";
 const FILE_SIG_DOMAIN: &[u8] = b"PQF1-file-sig-v1";
 
@@ -333,18 +339,22 @@ pub fn decrypt(parsed: &ParsedFile, identity: &Identity) -> Result<Vec<u8>> {
     let x_sec = XSec::from(identity.x25519_sk);
     let mlkem_dk = decode_mlkem_dk(&identity.mlkem_sk)?;
 
+    // Constant-time recipient trial (spec §6.5): iterate ALL recipients
+    // even after a match. ML-KEM implicit rejection means a malformed
+    // ciphertext returns a pseudorandom secret, so we never short-circuit
+    // on "wrong recipient" — the AEAD tag is the sole signal.
     let mut found_dek: Option<[u8; 32]> = None;
     for (idx, r) in parsed.recipients_iter().enumerate() {
-        // X25519 ECDH.
+        // X25519 ECDH. ss_X (X-Wing) = X25519(sk_X, ct_X).
         let epk = XPub::from(r.classical_epk);
         let ss_classical = x_sec.diffie_hellman(&epk);
 
-        // ML-KEM-1024 decapsulation.
+        // ML-KEM-768 decapsulation. ss_M (X-Wing) = ML-KEM-Decap(dk_M, ct_M).
         let ct_arr =
-            ml_kem::Ciphertext::<MlKem1024>::try_from(r.pqc_ct.as_slice()).map_err(|_| {
+            ml_kem::Ciphertext::<MlKem768>::try_from(r.pqc_ct.as_slice()).map_err(|_| {
                 PqfError::new(
                     RefusalReason::BinaryFieldLengthMismatch,
-                    "ML-KEM-1024 ciphertext length mismatch",
+                    "ML-KEM-768 ciphertext length mismatch",
                 )
             })?;
         let ss_pqc = match mlkem_dk.decapsulate(&ct_arr) {
@@ -352,46 +362,49 @@ pub fn decrypt(parsed: &ParsedFile, identity: &Identity) -> Result<Vec<u8>> {
             Err(_) => continue,
         };
 
-        // KEK = HKDF-Extract(salt, ikm) ; HKDF-Expand(prk, info)
-        let mut salt = Vec::with_capacity(COMBINER_SALT_PREFIX.len() + 16 + 4);
-        salt.extend_from_slice(COMBINER_SALT_PREFIX);
-        salt.extend_from_slice(&parsed.header.file_id);
-        salt.extend_from_slice(&(idx as u32).to_be_bytes());
-
-        // IKM = ss_x25519(32) || ss_mlkem(32) || classical_epk(32) || pqc_ct(1568).
-        // Folding the ciphertext and ephemeral public key into the extract input
-        // binds the KEK to the exact KEM transcript (bind-extract combiner, §2.4).
-        let mut ikm = Vec::with_capacity(64 + 32 + 1568);
-        ikm.extend_from_slice(ss_classical.as_bytes());
-        ikm.extend_from_slice(ss_pqc.as_slice());
-        ikm.extend_from_slice(&r.classical_epk[..]);
-        ikm.extend_from_slice(r.pqc_ct.as_slice());
-
-        let hk = Hkdf::<Sha256>::new(Some(&salt), &ikm);
+        // X-Wing combiner: KEK = SHA3-256(label || ss_M || ss_X || ct_X || pk_X)
+        // (draft-connolly-cfrg-xwing-kem). pk_X is the recipient's own
+        // X25519 public key, recomputed from the static secret so we
+        // never trust a value carried in the header for this purpose.
+        let pk_x: [u8; 32] = XPub::from(&x_sec).to_bytes();
+        let mut sha3 = <Sha3_256 as sha3::Digest>::new();
+        sha3.update(XWING_LABEL);
+        sha3.update(ss_pqc.as_slice());          // ss_M (32)
+        sha3.update(ss_classical.as_bytes());    // ss_X (32)
+        sha3.update(&r.classical_epk);           // ct_X (32)
+        sha3.update(&pk_x);                      // pk_X (32)
+        let kek_arr = sha3.finalize();
         let mut kek = [0u8; 32];
-        hk.expand(KEK_INFO, &mut kek).map_err(|_| {
-            PqfError::new(
-                RefusalReason::SignatureVerificationFailure,
-                "HKDF-Expand failed for KEK derivation",
-            )
-        })?;
+        kek.copy_from_slice(&kek_arr);
 
-        // Unwrap DEK with AES-256-GCM, AAD = file_id, nonce = wrapped_dek_nonce.
+        // Unwrap DEK with AES-256-GCM. AAD binds file instance AND
+        // recipient slot (the bindings X-Wing's combiner has no salt
+        // slot for); nonce comes from the wrapped_dek_nonce field.
+        let mut aad = [0u8; 20];
+        aad[..16].copy_from_slice(&parsed.header.file_id);
+        aad[16..].copy_from_slice(&(idx as u32).to_be_bytes());
+
         let cipher = Aes256Gcm::new_from_slice(&kek).expect("kek is 32 bytes");
         let nonce = Nonce::from_slice(&r.wrapped_dek_nonce);
         let pt = cipher.decrypt(
             nonce,
             Payload {
                 msg: &r.wrapped_dek,
-                aad: &parsed.header.file_id,
+                aad: &aad,
             },
         );
+        // Zero the KEK as soon as we are done with it. The DEK (when
+        // successfully unwrapped) is held only in `found_dek`.
+        for b in kek.iter_mut() { *b = 0; }
         match pt {
             Ok(dek_bytes) if dek_bytes.len() == 32 => {
-                let mut dek = [0u8; 32];
-                dek.copy_from_slice(&dek_bytes);
-                found_dek = Some(dek);
-                break;
+                if found_dek.is_none() {
+                    let mut dek = [0u8; 32];
+                    dek.copy_from_slice(&dek_bytes);
+                    found_dek = Some(dek);
+                }
+                // Continue trialling remaining recipients for constant-time
+                // hygiene (spec §6.5).
             }
             _ => continue,
         }
@@ -520,12 +533,12 @@ fn verify_mldsa87(pub_key: &[u8], message: &[u8], sig: &[u8]) -> bool {
 
 fn decode_mlkem_dk(
     bytes: &[u8],
-) -> Result<<MlKem1024 as KemCore>::DecapsulationKey> {
-    type Dk = <MlKem1024 as KemCore>::DecapsulationKey;
+) -> Result<<MlKem768 as KemCore>::DecapsulationKey> {
+    type Dk = <MlKem768 as KemCore>::DecapsulationKey;
     let encoded: &Encoded<Dk> = bytes.try_into().map_err(|_| {
         PqfError::new(
             RefusalReason::BinaryFieldLengthMismatch,
-            format!("ML-KEM-1024 decapsulation key length {} != expected", bytes.len()),
+            format!("ML-KEM-768 decapsulation key length {} != expected", bytes.len()),
         )
     })?;
     Ok(<Dk as EncodedSizeUser>::from_bytes(encoded))

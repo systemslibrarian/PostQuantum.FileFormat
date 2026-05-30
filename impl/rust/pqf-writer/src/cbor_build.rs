@@ -17,7 +17,7 @@ use crate::SignerMaterial;
 
 const HEADER_MAX_LEN: usize = 1_048_576;
 
-const MLKEM1024_CT_LEN: usize = 1568;
+const MLKEM768_CT_LEN: usize = 1088;
 const WRAPPED_DEK_LEN: usize = 48;
 const MLDSA87_PK_LEN: usize = 2592;
 
@@ -32,11 +32,11 @@ pub fn build_header(
         return Err(WriterError::InvalidChunkSize(chunk_size));
     }
     for r in recipients {
-        if r.pqc_ct.len() != MLKEM1024_CT_LEN {
+        if r.pqc_ct.len() != MLKEM768_CT_LEN {
             return Err(WriterError::RecipientFieldLength {
                 field: "pqc_ct",
                 got: r.pqc_ct.len(),
-                want: MLKEM1024_CT_LEN,
+                want: MLKEM768_CT_LEN,
             });
         }
         if r.wrapped_dek.len() != WRAPPED_DEK_LEN {
@@ -130,13 +130,13 @@ fn write_alg_map(buf: &mut Vec<u8>) {
     write_text(buf, "kdf");
     write_text(buf, "hkdf-sha256");
     write_text(buf, "kem");
-    write_text(buf, "x25519+ml-kem-1024");
+    write_text(buf, "x25519+ml-kem-768");
     write_text(buf, "sig");
     write_text(buf, "ed25519+ml-dsa-87");
     write_text(buf, "aead");
     write_text(buf, "aes-256-gcm-chunked");
     write_text(buf, "combiner");
-    write_text(buf, "pqf1-bind-extract-v1");
+    write_text(buf, "x-wing");
 }
 
 fn write_signer_map(buf: &mut Vec<u8>, s: &SignerMaterial) {

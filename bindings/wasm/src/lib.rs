@@ -7,10 +7,7 @@
 //! payload. See demo/index.html for a minimal "paste a file, see the
 //! header" page that loads them directly.
 
-use pqf_reader::{
-    decrypt as rust_decrypt, parse as rust_parse, Identity as RustIdentity, ALG_AEAD, ALG_COMBINER,
-    ALG_KDF, ALG_KEM, ALG_SIG,
-};
+use pqf_reader::{decrypt as rust_decrypt, parse as rust_parse, Identity as RustIdentity};
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
@@ -32,7 +29,7 @@ struct AlgJs {
 #[derive(Serialize)]
 struct HeaderJs {
     alg: AlgJs,
-    chunk_size: u32,
+    chunk_size: u64,
     created: String,
     file_id_hex: String,
     recipient_count: usize,
@@ -49,17 +46,14 @@ pub fn parse_header(file_bytes: &[u8]) -> Result<JsValue, JsError> {
     let parsed = rust_parse(file_bytes).map_err(map_err)?;
     let h = &parsed.header;
     let js = HeaderJs {
-        // A parsed header is guaranteed to carry exactly the v1 algorithm
-        // identifiers (the reader refuses anything else), so report them from
-        // the reader's canonical constants rather than re-reading the header.
         alg: AlgJs {
-            aead: ALG_AEAD.to_string(),
-            combiner: ALG_COMBINER.to_string(),
-            kdf: ALG_KDF.to_string(),
-            kem: ALG_KEM.to_string(),
-            sig: ALG_SIG.to_string(),
+            aead: h.alg.aead.clone(),
+            combiner: h.alg.combiner.clone(),
+            kdf: h.alg.kdf.clone(),
+            kem: h.alg.kem.clone(),
+            sig: h.alg.sig.clone(),
         },
-        chunk_size: h.chunk_size as u32,
+        chunk_size: h.chunk_size,
         created: h.created.clone(),
         file_id_hex: hex_lower(&h.file_id),
         recipient_count: h.recipients.len(),
@@ -87,8 +81,9 @@ pub struct Identity {
 #[wasm_bindgen]
 impl Identity {
     /// Construct an Identity from the four base64 strings the test-vector
-    /// manifest uses: name, full public-key blob, X25519 secret, ML-KEM-1024
-    /// secret.
+    /// manifest uses: name, full public-key blob, X25519 secret, ML-KEM-768
+    /// secret. The full pubkey blob is 1217 bytes
+    /// (0x01 || x25519_pub(32) || ml_kem_768_pub(1184)).
     #[wasm_bindgen(js_name = "fromManifest")]
     pub fn from_manifest(
         id: &str,

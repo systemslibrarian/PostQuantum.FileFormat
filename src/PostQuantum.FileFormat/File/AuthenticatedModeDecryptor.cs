@@ -121,8 +121,8 @@ internal sealed class AuthenticatedModeDecryptor
         for (var i = 0; i < header.Recipients.Count; i++)
         {
             var recipient = header.Recipients[i];
-            var kek = hybridKem.Decapsulate(identity, recipient.ClassicalEpk, recipient.PqcCt, header.FileId, (uint)i);
-            var dek = DekWrapper.Unwrap(kek, recipient.WrappedDekNonce, recipient.WrappedDek, header.FileId);
+            var kek = hybridKem.Decapsulate(identity, recipient.ClassicalEpk, recipient.PqcCt);
+            var dek = DekWrapper.Unwrap(kek, recipient.WrappedDekNonce, recipient.WrappedDek, header.FileId, (uint)i);
             SecureZero.Clear(kek);
 
             if (dek is null)

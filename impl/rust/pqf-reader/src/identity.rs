@@ -1,12 +1,16 @@
 //! Identity loading from the PQF test-vector manifest.
 //!
 //! The manifest stores each identity as base64-encoded:
-//!   - `PublicKey`             : 1601-byte canonical PqfPublicKey
-//!     (`0x01 || x25519_pub(32) || mlkem1024_pub(1568)`).
+//!   - `PublicKey`             : 1217-byte canonical PqfPublicKey
+//!     (`0x01 || x25519_pub(32) || mlkem768_pub(1184)`).
 //!   - `X25519PrivateKey`      : raw 32-byte X25519 scalar.
-//!   - `MlKem1024PrivateKey`   : 3168-byte FIPS 203 expanded decapsulation
+//!   - `MlKem768PrivateKey`    : 2400-byte FIPS 203 expanded decapsulation
 //!     key (BouncyCastle `MLKemPrivateKeyParameters.GetEncoded()` form,
 //!     which matches the canonical FIPS 203 dk serialization).
+//!
+//! v0.4.0: switched from ML-KEM-1024 (1568 byte pubkey, 3168 byte dk) to
+//! ML-KEM-768 (1184 byte pubkey, 2400 byte dk) as part of the X-Wing
+//! migration.
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 
@@ -14,12 +18,13 @@ use crate::error::{PqfError, RefusalReason, Result};
 
 const PUBKEY_VERSION: u8 = 0x01;
 const PUBKEY_X25519_LEN: usize = 32;
-const PUBKEY_MLKEM_LEN: usize = 1568;
+/// ML-KEM-768 public-key length per FIPS 203.
+const PUBKEY_MLKEM_LEN: usize = 1184;
 const PUBKEY_TOTAL_LEN: usize = 1 + PUBKEY_X25519_LEN + PUBKEY_MLKEM_LEN;
 
 const X25519_PRIV_LEN: usize = 32;
-/// FIPS 203 expanded decapsulation key length for ML-KEM-1024.
-pub const MLKEM1024_DK_LEN: usize = 3168;
+/// FIPS 203 expanded decapsulation key length for ML-KEM-768.
+pub const MLKEM768_DK_LEN: usize = 2400;
 
 #[derive(Clone)]
 pub struct Identity {
@@ -88,16 +93,16 @@ impl Identity {
         let mlkem_sk = STANDARD.decode(mlkem_sk_b64).map_err(|e| {
             PqfError::new(
                 RefusalReason::BinaryFieldLengthMismatch,
-                format!("identity {id}: ML-KEM-1024 private key not valid base64: {e}"),
+                format!("identity {id}: ML-KEM-768 private key not valid base64: {e}"),
             )
         })?;
-        if mlkem_sk.len() != MLKEM1024_DK_LEN {
+        if mlkem_sk.len() != MLKEM768_DK_LEN {
             return Err(PqfError::new(
                 RefusalReason::BinaryFieldLengthMismatch,
                 format!(
-                    "identity {id}: ML-KEM-1024 private key length {} != {}",
+                    "identity {id}: ML-KEM-768 private key length {} != {}",
                     mlkem_sk.len(),
-                    MLKEM1024_DK_LEN
+                    MLKEM768_DK_LEN
                 ),
             ));
         }

@@ -11,7 +11,7 @@ committed to this repo because:
 
 After running the fetch script, this directory should contain at least:
 
-- `ml-kem-1024.rsp` — KAT vectors for FIPS 203 (ML-KEM-1024).
+- `ml-kem-768.rsp` — KAT vectors for FIPS 203 (ML-KEM-768).
 - `ml-dsa-87.rsp`   — KAT vectors for FIPS 204 (ML-DSA-87).
 
 Run the cross-check harness with:

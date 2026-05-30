@@ -28,16 +28,16 @@ public sealed class CryptoProviderParityTests
         // BCL-generated key, BC encapsulates, BCL decapsulates: shared secrets
         // must match. This is the operational path that proves the two stacks
         // produce wire-compatible ML-KEM outputs.
-        var (sk, pk) = bcl.MlKem1024GenerateKeyPair();
-        var (ss1, ct) = bc.MlKem1024Encapsulate(pk);
-        var ss2 = bcl.MlKem1024Decapsulate(sk, ct);
+        var (sk, pk) = bcl.MlKem768GenerateKeyPair();
+        var (ss1, ct) = bc.MlKem768Encapsulate(pk);
+        var ss2 = bcl.MlKem768Decapsulate(sk, ct);
 
         Assert.Equal(ss1, ss2);
 
         // Reverse direction: BC-generated key, BCL encapsulates, BC decapsulates.
-        var (sk2, pk2) = bc.MlKem1024GenerateKeyPair();
-        var (ss3, ct2) = bcl.MlKem1024Encapsulate(pk2);
-        var ss4 = bc.MlKem1024Decapsulate(sk2, ct2);
+        var (sk2, pk2) = bc.MlKem768GenerateKeyPair();
+        var (ss3, ct2) = bcl.MlKem768Encapsulate(pk2);
+        var ss4 = bc.MlKem768Decapsulate(sk2, ct2);
         Assert.Equal(ss3, ss4);
     }
 
@@ -132,7 +132,7 @@ public sealed class CryptoProviderParityTests
         if (mlKemType is null)
         {
             // Pre-.NET-10 runtime: types don't exist. Bridge must report not-supported.
-            Assert.False(BclCryptoProvider.MlKem1024UsesBcl);
+            Assert.False(BclCryptoProvider.MlKem768UsesBcl);
             return;
         }
 
@@ -141,6 +141,6 @@ public sealed class CryptoProviderParityTests
             System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
         var platformSupports = isSupportedProp?.GetValue(null) as bool? ?? false;
 
-        Assert.Equal(platformSupports, BclCryptoProvider.MlKem1024UsesBcl);
+        Assert.Equal(platformSupports, BclCryptoProvider.MlKem768UsesBcl);
     }
 }

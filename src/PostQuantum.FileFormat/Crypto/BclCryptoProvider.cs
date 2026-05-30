@@ -29,9 +29,9 @@ public sealed class BclCryptoProvider : ICryptoProvider
         _fallback.SetInjectableRandomness(randomness);
     }
 
-    public static bool IsSupported => BclMlKemBridge.MlKem1024Supported || BclMlDsaBridge.MlDsa87Supported;
+    public static bool IsSupported => BclMlKemBridge.MlKem768Supported || BclMlDsaBridge.MlDsa87Supported;
 
-    public static bool MlKem1024UsesBcl => BclMlKemBridge.MlKem1024Supported;
+    public static bool MlKem768UsesBcl => BclMlKemBridge.MlKem768Supported;
 
     public static bool MlDsa87UsesBcl => BclMlDsaBridge.MlDsa87Supported;
 
@@ -40,20 +40,20 @@ public sealed class BclCryptoProvider : ICryptoProvider
     public byte[] X25519DeriveSharedSecret(ReadOnlySpan<byte> sk, ReadOnlySpan<byte> peerPk) =>
         _fallback.X25519DeriveSharedSecret(sk, peerPk);
 
-    public (byte[] sk, byte[] pk) MlKem1024GenerateKeyPair() =>
-        BclMlKemBridge.MlKem1024Supported
+    public (byte[] sk, byte[] pk) MlKem768GenerateKeyPair() =>
+        BclMlKemBridge.MlKem768Supported
             ? BclMlKemBridge.GenerateKeyPair()
-            : _fallback.MlKem1024GenerateKeyPair();
+            : _fallback.MlKem768GenerateKeyPair();
 
-    public (byte[] sharedSecret, byte[] ciphertext) MlKem1024Encapsulate(ReadOnlySpan<byte> peerPk) =>
-        BclMlKemBridge.MlKem1024Supported
+    public (byte[] sharedSecret, byte[] ciphertext) MlKem768Encapsulate(ReadOnlySpan<byte> peerPk) =>
+        BclMlKemBridge.MlKem768Supported
             ? BclMlKemBridge.Encapsulate(peerPk)
-            : _fallback.MlKem1024Encapsulate(peerPk);
+            : _fallback.MlKem768Encapsulate(peerPk);
 
-    public byte[] MlKem1024Decapsulate(ReadOnlySpan<byte> sk, ReadOnlySpan<byte> ciphertext) =>
-        BclMlKemBridge.MlKem1024Supported
+    public byte[] MlKem768Decapsulate(ReadOnlySpan<byte> sk, ReadOnlySpan<byte> ciphertext) =>
+        BclMlKemBridge.MlKem768Supported
             ? BclMlKemBridge.Decapsulate(sk, ciphertext)
-            : _fallback.MlKem1024Decapsulate(sk, ciphertext);
+            : _fallback.MlKem768Decapsulate(sk, ciphertext);
 
     public (byte[] sk, byte[] pk) Ed25519GenerateKeyPair() => _fallback.Ed25519GenerateKeyPair();
 
@@ -97,7 +97,7 @@ internal static class BclMlKemBridge
     private static readonly Type? _algorithmType = Type.GetType("System.Security.Cryptography.MLKemAlgorithm, System.Security.Cryptography");
     private static readonly Type? _mlKemType = Type.GetType("System.Security.Cryptography.MLKem, System.Security.Cryptography");
 
-    private static readonly object? _mlKem1024;
+    private static readonly object? _mlKem768;
     private static readonly MethodInfo? _generateKey;
     private static readonly MethodInfo? _importEncapsulationKey;
     private static readonly MethodInfo? _importDecapsulationKey;
@@ -106,7 +106,7 @@ internal static class BclMlKemBridge
     private static readonly MethodInfo? _encapsulateOutOut;
     private static readonly MethodInfo? _decapsulateBytes;
 
-    public static readonly bool MlKem1024Supported;
+    public static readonly bool MlKem768Supported;
 
     static BclMlKemBridge()
     {
@@ -114,9 +114,9 @@ internal static class BclMlKemBridge
 
         try
         {
-            var mlKem1024Prop = _algorithmType.GetProperty("MLKem1024", BindingFlags.Public | BindingFlags.Static);
-            _mlKem1024 = mlKem1024Prop?.GetValue(null);
-            if (_mlKem1024 is null) return;
+            var mlKem768Prop = _algorithmType.GetProperty("MLKem768", BindingFlags.Public | BindingFlags.Static);
+            _mlKem768 = mlKem768Prop?.GetValue(null);
+            if (_mlKem768 is null) return;
 
             var isSupportedProp = _mlKemType.GetProperty("IsSupported", BindingFlags.Public | BindingFlags.Static);
             if (isSupportedProp?.GetValue(null) is not bool isSupported || !isSupported) return;
@@ -136,10 +136,10 @@ internal static class BclMlKemBridge
                 return;
             }
 
-            // Liveness probe: actually generate-and-dispose a 1024 key.
-            using (_generateKey.Invoke(null, new[] { _mlKem1024 }) as IDisposable)
+            // Liveness probe: actually generate-and-dispose a 768 key.
+            using (_generateKey.Invoke(null, new[] { _mlKem768 }) as IDisposable)
             {
-                MlKem1024Supported = true;
+                MlKem768Supported = true;
             }
         }
         catch (TargetInvocationException tie) when (tie.InnerException is PlatformNotSupportedException)
@@ -156,7 +156,7 @@ internal static class BclMlKemBridge
 
     public static (byte[] sk, byte[] pk) GenerateKeyPair()
     {
-        var instance = _generateKey!.Invoke(null, new[] { _mlKem1024 })!;
+        var instance = _generateKey!.Invoke(null, new[] { _mlKem768 })!;
         try
         {
             var pk = (byte[])_exportEncapsulationKey!.Invoke(instance, null)!;
@@ -172,7 +172,7 @@ internal static class BclMlKemBridge
     public static (byte[] sharedSecret, byte[] ciphertext) Encapsulate(ReadOnlySpan<byte> peerPk)
     {
         var pkBytes = peerPk.ToArray();
-        var instance = _importEncapsulationKey!.Invoke(null, new object?[] { _mlKem1024, pkBytes })!;
+        var instance = _importEncapsulationKey!.Invoke(null, new object?[] { _mlKem768, pkBytes })!;
         try
         {
             var args = new object?[] { null, null };
@@ -195,7 +195,7 @@ internal static class BclMlKemBridge
         object? instance = null;
         try
         {
-            instance = _importDecapsulationKey!.Invoke(null, new object?[] { _mlKem1024, skBytes })!;
+            instance = _importDecapsulationKey!.Invoke(null, new object?[] { _mlKem768, skBytes })!;
             return (byte[])_decapsulateBytes!.Invoke(instance, new object?[] { ctBytes })!;
         }
         finally

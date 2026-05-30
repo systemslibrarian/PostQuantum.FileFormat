@@ -1,86 +1,59 @@
 # Symbolic model of the PQF hybrid KEM combiner
 
-This directory contains a **work-in-progress symbolic model** of PQF's
-hybrid KEM combiner construction (`pqf1-bind-extract-v1`, spec §2.4)
-in the Tamarin Prover and ProVerif languages.
+> **Superseded as of spec v0.4.0 (2026-05-30).**
+> The model files in this directory describe PQF's previous in-house
+> KEM combiner, `pqf1-concat-extract-v1`, which was **removed** when
+> PQF migrated to the X-Wing combiner
+> (draft-connolly-cfrg-xwing-kem). X-Wing has external machine-checked
+> security proofs in ROM and QROM published by Barbosa, Boyen,
+> Connolly, Schwabe, Stehlé, and Strub (2024) — there is no longer
+> anything for PQF to model at the KEM-combiner layer.
+>
+> The files are left in place for historical reference and because
+> their structural shape (KEM → KDF → AEAD-wrap) is a useful starting
+> point if anyone later wants to model the *outer* PQF assembly
+> (per-recipient wrap + chunked AEAD + hybrid signatures). They are
+> **NOT a normative artifact** of the current spec.
 
-**Status: skeleton.** The model captures the structure of the combiner
-and states the property we want to prove (DEK confidentiality holds as
-long as either the classical or post-quantum half remains unbroken),
-but the proofs themselves have not been completed by anyone with
-formal-methods expertise. This directory is here so a cryptographer
-who wants to contribute review has a concrete starting point — not
-because the proofs already exist.
+## Original (pre-v0.4.0) status
 
-Why bother committing an incomplete model? Because the alternative is
-no formal model at all, which is the more common state for new file
-formats. A skeleton that is mechanically checkable for syntax errors
-is closer to "real" than prose claims.
+This directory contained a **work-in-progress symbolic model** of
+PQF's hybrid KEM combiner construction
+(`pqf1-concat-extract-v1`, spec §2.4 pre-v0.4.0) in the Tamarin
+Prover and ProVerif languages.
+
+**Status (frozen): skeleton.** The model captured the structure of
+the combiner and stated the property to prove (DEK confidentiality
+holds as long as either the classical or post-quantum half remains
+unbroken), but the proofs themselves were never completed.
 
 ## Files
 
 - [`pqf-combiner.spthy`](./pqf-combiner.spthy) — Tamarin model of the
-  combiner. Captures: ephemeral X25519, ML-KEM encapsulation,
-  HKDF-Extract over the bind-extract IKM (both shared secrets plus the
-  ML-KEM ciphertext and X25519 ephemeral public key), AES-GCM wrap of
-  the DEK under the resulting KEK. The lemma
-  `dek_secrecy_under_hybrid_assumption` states the desired property.
+  legacy combiner. Captures: ephemeral X25519, ML-KEM encapsulation,
+  HKDF-Extract over the concatenation, AES-GCM wrap of the DEK under
+  the resulting KEK. The lemma `dek_secrecy_under_hybrid_assumption`
+  stated the desired property.
 - [`pqf-combiner.pv`](./pqf-combiner.pv) — Equivalent ProVerif applied
-  pi calculus model for cross-checking. Same primitives, same property.
+  pi calculus model for cross-checking.
 
-## What is and isn't modeled
+## Why keep them at all
 
-In scope (this skeleton):
+Two reasons:
 
-- The KEM combiner: bind-extract via HKDF (shared secrets concatenated
-  with the ML-KEM ciphertext and X25519 ephemeral public key).
-- DEK wrapping under the derived KEK.
-- A passive Dolev–Yao adversary with full network control.
+1. **Provenance.** When reviewers ask "what about that symbolic model
+   you committed?", the answer is "it modeled the v0.3.x combiner,
+   which we removed when we adopted X-Wing — see the deprecation
+   notice above." Deleting the files would erase that audit trail.
+2. **Future starting point.** If someone wants to model PQF's *outer*
+   assembly (X-Wing as an idealized KEM, then the per-recipient AEAD
+   wrap, then chunked AEAD, then hybrid signatures), the
+   `pqf-combiner.spthy` Tamarin file is a structural template for how
+   to wire up Dolev–Yao adversaries against PQF-shaped protocols.
 
-Out of scope (deliberate simplifications):
+For the X-Wing combiner itself, the right references are:
 
-- The on-disk CBOR structure. The symbolic model treats messages
-  abstractly; encoding correctness is a separate concern handled by
-  the CDDL schema in `spec/pqf-header.cddl`.
-- The hybrid signature scheme. Signatures provide authenticity, not
-  confidentiality; modeling them is straightforward but orthogonal to
-  the combiner question.
-- The per-chunk AEAD construction. We assume an idealized AEAD oracle.
-- Side channels. Symbolic models cannot express timing leaks; see
-  `docs/SIDE-CHANNEL-POSTURE.md`.
-
-## Running
-
-Tamarin Prover (recommended on Linux/macOS; Windows via WSL):
-
-```bash
-# Install: https://tamarin-prover.com/manual/master/book/002_installation.html
-tamarin-prover --prove spec/symbolic/pqf-combiner.spthy
-```
-
-ProVerif (cross-check):
-
-```bash
-# Install: https://bblanche.gitlabpages.inria.fr/proverif/
-proverif spec/symbolic/pqf-combiner.pv
-```
-
-CI does not run these tools today. Wiring them up is straightforward
-(Tamarin has a maintained Docker image) but adds ~10 minutes per run;
-we will enable it once the proofs themselves type-check end-to-end.
-
-## How to contribute
-
-This is the part of the project where outside expertise has the most
-leverage. If you have done symbolic protocol verification before:
-
-- Open a [spec-review issue](../../.github/ISSUE_TEMPLATE/spec-review.yml)
-  describing the gap you've found.
-- Submit a PR refining the model. The bar is "the proof goes through
-  in Tamarin or ProVerif with no unproven lemmas."
-
-If a refinement reveals a flaw in the construction itself, that is a
-spec defect — exactly the feedback the project asks for in the README's
-"Cryptographic review wanted" section. Use the [private security
-advisory](https://github.com/systemslibrarian/PostQuantum.FileFormat/security/advisories/new)
-channel if exploitable.
+- draft-connolly-cfrg-xwing-kem (the spec).
+- Barbosa, Boyen, Connolly, Schwabe, Stehlé, Strub (2024) — "X-Wing:
+  The Hybrid KEM You've Been Looking For" — the ROM/QROM IND-CCA
+  security proofs.

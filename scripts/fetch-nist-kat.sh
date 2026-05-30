@@ -2,7 +2,7 @@
 #
 # scripts/fetch-nist-kat.sh
 #
-# Download NIST KAT vector files for ML-KEM-1024 (FIPS 203) and
+# Download NIST KAT vector files for ML-KEM-768 (FIPS 203) and
 # ML-DSA-87 (FIPS 204) into test-vectors/nist-kat/.
 #
 # The exact URL of each authoritative artifact moves periodically;
@@ -27,7 +27,7 @@ fetch-nist-kat: this script is a placeholder.
 To run the KAT harness, place the following files in:
     test-vectors/nist-kat/
 
-  - ml-kem-1024.rsp   (NIST FIPS 203 KAT response file)
+  - ml-kem-768.rsp   (NIST FIPS 203 KAT response file)
   - ml-dsa-87.rsp     (NIST FIPS 204 KAT response file)
 
 Once these files are present, run:

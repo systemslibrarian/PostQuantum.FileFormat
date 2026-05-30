@@ -118,8 +118,8 @@ public sealed class RecipientTrialConstantTimeTests
 
         for (var i = 0; i < identities.Length; i++)
         {
-            var (epk, ct, kek) = kem.Encapsulate(identities[i].PublicKey, fileId, (uint)i);
-            var (nonce, wrapped) = DekWrapper.Wrap(kek, dek, fileId);
+            var (epk, ct, kek) = kem.Encapsulate(identities[i].PublicKey);
+            var (nonce, wrapped) = DekWrapper.Wrap(kek, dek, fileId, (uint)i);
             SecureZero.Clear(kek);
 
             header.Recipients.Add(new PqfRecipientBlock

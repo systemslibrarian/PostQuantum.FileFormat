@@ -11,34 +11,31 @@ policy. Wire format changes are called out here under "Wire format."
 
 ## [Unreleased]
 
-### Changed
+### Wire format — BREAKING
 
-- **Bind-extract KEM combiner** (spec §2.4). The HKDF-Extract IKM now
-  folds each recipient's X25519 ephemeral public key (`classical_epk`)
-  and ML-KEM-1024 ciphertext (`pqc_ct`) alongside the two shared
-  secrets, binding the KEK to the exact KEM transcript. Closes the
-  ciphertext/ephemeral substitution gap previously left to the
-  wrap-AEAD check (prior finding F2 / X-Wing-parity item).
-- **Signature domain separation** (spec §6.2). The header and file
-  signatures are now computed over `"PQF1-header-sig-v1" || header_bytes`
-  and `"PQF1-file-sig-v1" || file_id || sha256(chunks) || footer`, so the
-  two signing contexts are explicitly disjoint (prior finding F1).
-- **Rust writer fixes** (found during the above): chunk frame order
-  corrected to `length || flags || ct` per spec §5.3 (was
-  `flags || length`), and the `rfc3339_known_values` test expectation
-  corrected (the date function was right; the test constant was wrong).
-
-### Wire format
-
-- **Breaking (draft).** Spec advanced 0.4 → 0.5. The new `alg.combiner`
-  identifier `pqf1-bind-extract-v1` gates the change: a 0.5 reader
-  refuses 0.4 files and vice versa at the algorithm-identifier check.
-  No change to wire *layout* (field order, lengths, version byte, CBOR
-  structure) — only the bytes fed to the KDF and the signer changed.
-  All 47 conformance vectors regenerated; .NET (140 tests) and the Rust
-  `pqf-conformance` reader both pass 47/47 against the new crypto.
-
-## [0.4.0-preview.3] — 2026-05-29
+- **KEM combiner switched from PQF's in-house HKDF-concatenate-then-extract
+  to X-Wing** (draft-connolly-cfrg-xwing-kem). This is a wire-incompatible
+  break from spec v0.3.x; files produced under v0.3.x cannot be decrypted
+  by v0.4.0+ readers, and vice versa. The file format version byte
+  (`PQF1` magic, uint16 `0x0001`) does not change — only the `alg` map
+  exact-match values and the recipient `pqc_ct` byte-string length.
+  - `alg.combiner`: `"pqf1-concat-extract-v1"` → `"x-wing"`.
+  - `alg.kem`: `"x25519+ml-kem-1024"` → `"x25519+ml-kem-768"`.
+  - PQC slot: ML-KEM-1024 (Category 5) → **ML-KEM-768** (Category 3),
+    required by the X-Wing parameter set.
+  - `recipients[i].pqc_ct`: 1568 bytes → **1088 bytes**.
+  - Canonical encryption public key total: 1601 bytes → **1217 bytes**
+    (1 + 32 X25519 + 1184 ML-KEM-768).
+  - DEK-wrap AEAD AAD: `file_id (16)` → `file_id (16) || recipient_index
+    (u32 BE)`. X-Wing's combiner has no salt slot, so per-recipient
+    binding moves into the AEAD AAD.
+  - The bespoke `HkdfCombiner.DeriveKek` is removed; the per-chunk
+    HKDF expansion (`DeriveChunkKey`) is unchanged.
+  - All published v1 test vectors (TV-001..014 + TV-NEG-001..022) are
+    regenerated under the new format.
+- Spec doc version bumped to v0.4.0 (still pre-1.0.0 / EXPERIMENTAL).
+  Motivation, exact construction, and a full changelog entry are in
+  `spec/PQF-SPEC-v1.md` §2.1, §2.4, §4.2, §7.1.
 
 ### Added
 
@@ -117,28 +114,6 @@ policy. Wire format changes are called out here under "Wire format."
 
 ### Changed
 
-- **Pre-review hardening pass.** Addressed findings F1–F9 from the
-  internal review (`findings.md`). Highlights:
-  - `PqfFileWriter` now fills each non-final chunk with
-    `ReadAtLeastAsync` so short-reading source streams (pipes,
-    sockets) can no longer emit undersized non-final chunks (F5).
-  - `HybridSigner.SignDeterministic` and the deterministic-randomness
-    encrypt path are now `internal` test-only plumbing, with a
-    reflection guard test asserting they are not reachable from the
-    public `EncryptAsync` surface (F9).
-  - Documentation sharpened for the truncation threat model,
-    streaming "do not trust plaintext until final verification"
-    contract, and the combiner's relationship to X-Wing/CFRG (F2, F3,
-    F7, F8). New one-page reviewer front door at
-    `docs/SECURITY-OVERVIEW.md`.
-- **Header-schema conformance vectors** (`TV-NEG-023`…`TV-NEG-033`)
-  added to the vector generator, closing the portable
-  negative-vector gap for unknown-field (×4), algorithm mismatch,
-  missing-field, empty-recipients, malformed `created`, invalid
-  `chunk_size`, binary field length, and duplicate-CBOR-key refusals
-  (F4). `SPEC-CHECKLIST.md` §11 now maps every fail-closed MUST to a
-  portable vector. Manifest artifacts land once the
-  `PostQuantum.FileFormat.TestVectors` project is re-run.
 - **Reproducible test-vector regeneration** now covers the full set
   (signed + unsigned). Previously only the unsigned subset was
   byte-deterministic; widening it required threading FIPS 204
@@ -147,11 +122,8 @@ policy. Wire format changes are called out here under "Wire format."
 
 ### Wire format
 
-- **No breaking changes.** Spec document advanced 0.3.1 → 0.4
-  (reviewer-readiness milestone; tag `spec-v0.4`). The only normative
-  clarification is the explicit parameter-set conformance note in §2.
-  No wire-format, parameter, or normative-MUST change. The header CDDL
-  schema in `spec/pqf-header.cddl` matches the prose in
+- **No breaking changes.** v0.3.1 draft. The header CDDL schema in
+  `spec/pqf-header.cddl` matches the prose in
   `spec/PQF-SPEC-v1.md` §4 byte-for-byte.
 
 ## [0.4.0-preview.2] — 2026-02-13
@@ -176,7 +148,6 @@ policy. Wire format changes are called out here under "Wire format."
 
 - Draft v0.3.1 (unchanged from internal Phase 4 release).
 
-[Unreleased]: https://github.com/systemslibrarian/PostQuantum.FileFormat/compare/v0.4.0-preview.3...HEAD
-[0.4.0-preview.3]: https://github.com/systemslibrarian/PostQuantum.FileFormat/compare/v0.4.0-preview.2...v0.4.0-preview.3
+[Unreleased]: https://github.com/systemslibrarian/PostQuantum.FileFormat/compare/v0.4.0-preview.2...HEAD
 [0.4.0-preview.2]: https://github.com/systemslibrarian/PostQuantum.FileFormat/releases/tag/v0.4.0-preview.2
 [0.4.0-preview.1]: https://github.com/systemslibrarian/PostQuantum.FileFormat/releases/tag/v0.4.0-preview.1

@@ -17,7 +17,7 @@ for ident in m["Identities"]:
     base.mkdir(exist_ok=True)
     (base / "id-a.pub.b64").write_text(ident["PublicKey"])
     (base / "id-a.x25519.b64").write_text(ident["X25519PrivateKey"])
-    (base / "id-a.mlkem.b64").write_text(ident["MlKem1024PrivateKey"])
+    (base / "id-a.mlkem.b64").write_text(ident["MlKem768PrivateKey"])
     break
 print("regenerated")
 PY

@@ -1,6 +1,6 @@
 # PQF Design Rationale — Companion to PQF-SPEC-v1
 
-**Status:** DRAFT / EXPERIMENTAL companion to PQF-SPEC-v1 v0.5
+**Status:** DRAFT / EXPERIMENTAL companion to PQF-SPEC-v1 v0.3.1
 **Document version:** 0.1.0 (2026-04-21)
 **Author:** Paul Clark <paul@systemslibrarian.dev>
 **License:** MIT
@@ -87,26 +87,42 @@ signing matter from day one.
 
 ## 2. Primitive choices
 
-### 2.1 Why X25519 + ML-KEM-1024 (Category 5) rather than ML-KEM-768 (Category 3)
+### 2.1 Why X-Wing (X25519 + ML-KEM-768)
 
-ML-KEM-768 is already above the common classical baseline (roughly equivalent
-to AES-192 security). ML-KEM-1024 is roughly equivalent to AES-256.
+PQF 0.3.x used X25519 + ML-KEM-1024 with an in-house HKDF
+"concatenate-then-extract" combiner. Two independent external reviewers
+(both ChatGPT and Grok) flagged the in-house combiner as the single
+highest-risk choice in the format and recommended switching to
+**X-Wing** (draft-connolly-cfrg-xwing-kem), which has external IND-CCA
+proofs in ROM and QROM (Barbosa et al., 2024). X-Wing is defined for
+ML-KEM-768; using ML-KEM-1024 would have required a non-standard
+variant of the combiner and reintroduced exactly the "Paul's special
+sauce" problem we were trying to remove.
 
-For a file format intended for archival confidentiality on decade-plus
-horizons, the incremental cost of Category 5 is trivial:
+The 0.4.0 rewrite makes the trade explicit:
 
-- Public key: 1568 bytes vs 1184 bytes (difference: 384 bytes)
-- Ciphertext: 1568 bytes vs 1088 bytes (difference: 480 bytes)
-- Slightly slower encap/decap, not measurably so on modern hardware
+- Lose: ML-KEM-1024's Category 5 margin (AES-256-equivalent) — drop to
+  Category 3 (AES-192-equivalent).
+- Lose: a small amount of size (1184 vs 1568 byte pubkeys, 1088 vs
+  1568 byte ciphertexts — actually a *win* on size).
+- Lose: the ability to bind `file_id`/`recipient_index` into the KDF
+  salt (X-Wing has no salt slot). Those bindings move to the DEK-wrap
+  AEAD AAD instead; cross-recipient isolation properties are preserved
+  (§4.2 below).
+- Gain: a standardized, peer-reviewed construction with proofs we did
+  not write. Reviewers no longer need to evaluate PQF's combiner
+  design — they can read the X-Wing paper.
+- Gain: deletion of `pqf1-concat-extract-v1`, the deviation paragraph,
+  and the "no formal proof of the overall assembly" disclaimer on the
+  KEM combiner layer specifically.
 
-The benefit is a larger security margin against future cryptanalytic
-progress on lattice problems. Lattice-based cryptography is younger than
-RSA or ECC; the analytic understanding continues to mature. Choosing the
-more conservative parameter set for an archival format matches the intent
-of the tool.
-
-For files intended for transient confidentiality (TLS-like use cases),
-Category 3 would be appropriate. PQF is not that tool.
+For an archival format whose realistic adversary is harvest-now /
+decrypt-later, ML-KEM-768 (Category 3) is not the load-bearing element;
+the symmetric layer (AES-256-GCM) is, and AES-256 already dominates the
+hybrid security budget. The Category 5 margin we gave up is a margin
+against future lattice cryptanalysis on ML-KEM-768 specifically — a
+real but bounded concern, traded for the much larger benefit of
+deleting our own combiner from the trust budget.
 
 ### 2.2 Why Ed25519 + ML-DSA-87
 
@@ -142,73 +158,45 @@ always on a server or desktop with AES-NI, and AES-GCM's standardization
 weight is higher. The choice is a judgment call; ChaCha20-Poly1305 would
 not have been wrong.
 
-### 2.4 Why HKDF-SHA-256 for the combiner
+### 2.4 KDF choices: SHA-3-256 for the KEM combiner, HKDF-SHA-256 elsewhere
 
-HKDF (RFC 5869) is the standard construction for deriving multiple keys from
-a shared secret. SHA-256 is universally available and appropriate for
-32-byte shared secrets (X25519 and ML-KEM-1024 both produce 32-byte
-secrets).
+The X-Wing combiner is a single SHA-3-256 invocation over
+`label || ss_M || ss_X || ct_X || pk_X`. PQF inherits this verbatim
+(§2.4 of the spec) — the hash function choice was made by the X-Wing
+authors based on the construction's security proof, not by us.
 
-SHA-384 or SHA-512 would offer more collision resistance but add no
-meaningful security for keys derived from 32-byte inputs. SHA-3 would also
-work; SHA-2 was chosen for ubiquity.
+The per-chunk key derivation `chunk_key = HKDF-Expand(dek, "PQF1-chunk-v1" || i)`
+remains HKDF-SHA-256. This is a separate step that derives one symmetric
+key per chunk from an already-uniform 32-byte DEK; HKDF-Expand is the
+right primitive for it and SHA-256 is universally available.
 
-### 2.5 Why "concatenate-then-extract" for the combiner
+### 2.5 What was wrong with "concatenate-then-extract" and why X-Wing fixes it
 
-The spec combiner (draft 0.5, `pqf1-bind-extract-v1`) is:
+The 0.3.x combiner was:
 
 ```
 combined_ss = HKDF-Extract(
     salt = "PQF1-combiner-v1" || file_id || recipient_index,
     ikm  = x25519_shared_secret || mlkem_shared_secret
-        || classical_epk || pqc_ct
 )
 ```
 
-This follows the **concatenate-then-extract** pattern of
-`draft-ounsworth-cfrg-kem-combiners`, extended to also fold the KEM
-transcript (the X25519 ephemeral public key and the ML-KEM ciphertext) into
-the Extract input — the "bind-extract" profile. Several alternatives were
-considered:
+This had three problems that reviewers (ChatGPT, Grok) consistently
+called out:
 
-- **XOR the secrets:** Too weak; cancels under certain conditions.
-- **Hash the concatenation directly:** Works, but HKDF's Extract-then-Expand
-  structure is the IETF-preferred pattern.
-- **Dual-PRF constructions:** More complex, no clear security benefit for
-  this specific use case.
+1. **No ciphertext binding.** The KEM ciphertext (X25519 ephemeral
+   public key and ML-KEM ciphertext) was not part of the KDF input.
+   X-Wing binds `ct_X` and `pk_X` directly into the SHA-3 input, which
+   removes a class of multi-target / re-encapsulation attacks.
+2. **No external proof.** "Aligned with
+   draft-ounsworth-cfrg-kem-combiners" is not a proof. X-Wing has IND-CCA
+   proofs in ROM/QROM from Barbosa et al. (2024).
+3. **Author of combiner = author of format.** Every reviewer would have
+   to evaluate this construction independently. Removing it removes that
+   ask.
 
-Binding `file_id` and `recipient_index` into the salt provides early domain
-separation. Even if X25519 or ML-KEM outputs were somehow reused across
-files or recipients (which would itself indicate a primitive break), the
-combined secrets diverge. This is defense-in-depth at a place where the
-cost is zero.
-
-#### How this deviates from the IETF/X-Wing combiners
-
-As of draft 0.5 the combiner folds the ML-KEM ciphertext (`pqc_ct`) and the
-X25519 ephemeral public key (`classical_epk`) into the HKDF-Extract IKM, in
-the spirit of X-Wing's transcript binding. It is still **not** byte-equivalent
-to `draft-ounsworth-cfrg-kem-combiners` or X-Wing, and reviewers should not
-assume those constructions' proofs transfer unchanged. The specific points:
-
-1. **Ciphertext/ephemeral binding is now in the KDF input.** The KEK is a
-   function of `ss_x25519 || ss_mlkem || classical_epk || pqc_ct`. A
-   substituted ciphertext or ephemeral public key yields a different KEK, so
-   the combiner output is now a commitment to the exact KEM transcript that
-   produced it — the property earlier drafts relocated to the wrap-AEAD and
-   header-integrity checks. Those checks remain as defense in depth.
-2. **Still not X-Wing byte-for-byte.** X-Wing hashes its transcript with
-   SHA3-256 and (because ML-KEM's FO transform already binds `ss_mlkem` to
-   `pqc_ct`) does not separately feed the ML-KEM ciphertext. PQF uses
-   HKDF-SHA-256 and folds `pqc_ct` explicitly. Folding `pqc_ct` is redundant
-   given the FO transform but is cheap, defensive, and matches the
-   "KitchenSink" CFRG profile; it does not weaken the construction.
-3. **Claim.** PQF claims IND-CCA confidentiality of the DEK under the standard
-   hybrid-KEM assumption (security holds if *either* X25519 *or* ML-KEM is
-   unbroken), now strengthened with explicit transcript binding at the
-   combiner. PQF still does not publish a machine-checked proof of the exact
-   assembly; the symbolic models under `spec/symbolic/` remain research-level
-   follow-up.
+The `file_id`/`recipient_index` binding that the salt slot provided is
+preserved at the next layer — the DEK-wrap AEAD's AAD (§4.2 below).
 
 ---
 
@@ -283,19 +271,33 @@ the plaintext (replacing the file with a new version) would require the
 sender to maintain a list of recipients and re-encrypt N times. With
 multi-recipient, the sender encrypts once.
 
-### 4.2 Why per-recipient KEK with `recipient_index` in the salt
+### 4.2 Per-recipient KEK with `file_id`/`recipient_index` bound in AEAD AAD
 
-Two reasons:
+Under 0.4.0's X-Wing combiner, the KEK is intrinsically per-recipient:
+the combiner input includes the recipient's X25519 long-term public key
+(`pk_X`), so two recipients on the same file derive structurally
+different KEKs from the same plaintext shared-secret pair.
 
-1. **Isolation.** A compromise of one recipient's identity should not assist
-   attacks on other recipients' wrapped DEKs. Binding `recipient_index` into
-   the HKDF-Extract salt ensures each recipient's KEK is independently
-   derived even if the underlying KEM outputs happened to collide.
+The remaining bindings — file instance (`file_id`) and recipient slot
+(`recipient_index`) — could not stay in a KDF salt because X-Wing has
+no salt slot. They move into the DEK-wrap AEAD's associated data:
 
+```
+wrapped_dek_aad = file_id (16 bytes) || recipient_index (uint32 BE)
+```
+
+The properties this preserves:
+
+1. **Per-recipient isolation.** A KEK derived for slot `i` (with the
+   recipient's `pk_X`) cannot unwrap the DEK wrap targeting slot `j`,
+   because the AADs differ. Even ignoring the `pk_X` binding in the
+   combiner, the AAD layer alone is sufficient.
 2. **No cross-file linkage.** Two files encrypted to the same recipient
-   produce two different KEKs because `file_id` is also in the salt. An
-   attacker who somehow recovers one file's KEK learns nothing about the
-   other file's KEK.
+   produce wraps under different AADs (`file_id` differs), so a KEK
+   compromise on one file does not unwrap the other file's DEK.
+
+This is the same defense-in-depth the salt-bound combiner provided,
+just moved one layer down. Spec §8.5 and §8.7 are updated accordingly.
 
 ### 4.3 Why chunked AEAD rather than whole-file AEAD
 
@@ -619,14 +621,18 @@ Places where the author is uncertain and would value external input:
    been more generic?
 
 6. **Domain separation between header signature and file signature.**
-   **RESOLVED in draft 0.5.** The same hybrid signing key signs two
-   distinct messages, and as of 0.5 each carries an explicit
-   domain-separation prefix: the header signature is over
-   `"PQF1-header-sig-v1" || header_bytes` (§6.2 step 5) and the file
-   signature over `"PQF1-file-sig-v1" || file_id || sha256(chunks) ||
-   footer` (§6.2 step 9). The two signing contexts are now disjoint by
-   construction, so neither signature can be replayed as the other
-   regardless of payload structure. This was the F1 hygiene gap.
+   The same hybrid signing key signs two distinct messages: the
+   deterministic CBOR header bytes (header signature, §6.2 step 5) and
+   `file_id || sha256(chunks) || footer` (file signature, §6.2 step 9).
+   The two messages are structurally distinct and short, so the author
+   does not see an obvious cross-protocol path that would let one
+   signature be replayed as the other. Even so, prepending an explicit
+   domain-separation prefix — e.g. `"PQF1-header-sig-v1"` and
+   `"PQF1-file-sig-v1"` — to each message before it reaches the signer
+   would close the question by construction. This would be a v1.1
+   wire-format change (signature inputs change, but key formats and
+   ciphertext layout do not). Should the spec adopt this now, or wait
+   for a concrete attack?
 
 7. **Footer integrity on unsigned files.** When a file is signed the
    20-byte footer is covered by the file signature (§6.2 step 9). When
@@ -653,19 +659,6 @@ Places where the author is uncertain and would value external input:
    conforming implementations to document the side-channel posture of
    their dependencies, even though it cannot meaningfully require a
    particular posture?
-
-9. **X-Wing / CFRG-combiner parity for ciphertext binding.**
-   **RESOLVED in draft 0.5** (bind-extract combiner, §2.4/§2.5). The
-   combiner now folds `classical_epk` and `pqc_ct` into the HKDF-Extract
-   IKM, so the KEK is bound to the exact KEM transcript and a substituted
-   ciphertext/ephemeral yields a different KEK. PQF now obtains
-   ciphertext/ephemeral binding by construction rather than relying solely
-   on the header-integrity and wrap-AEAD checks. The construction remains
-   intentionally *not* byte-equivalent to X-Wing (HKDF-SHA-256 vs.
-   SHA3-256; `pqc_ct` folded explicitly though ML-KEM's FO already binds
-   it), so X-Wing's proofs still do not transfer unchanged. Residual open
-   item: a machine-checked proof of the exact assembly (the symbolic
-   models under `spec/symbolic/` are research-level follow-up).
 
 ---
 

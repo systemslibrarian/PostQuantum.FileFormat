@@ -63,7 +63,7 @@ at the top of `spec/PQF-SPEC-v1.md`.
 
 The reference implementation does not claim side-channel resistance. It
 inherits the posture of its underlying primitives, including BouncyCastle's
-ML-KEM-1024 and ML-DSA-87 implementations, which make no public claim of
+ML-KEM-768 and ML-DSA-87 implementations, which make no public claim of
 constant-time execution against power, EM, or microarchitectural side
 channels. The full per-operation matrix — what the wrapper controls, what it
 inherits, and what is explicitly out of scope — is documented in

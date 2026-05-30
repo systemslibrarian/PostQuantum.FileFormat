@@ -31,7 +31,7 @@ public sealed class TestVectorConformanceTests
             i => new PqfIdentity(
                 PqfPublicKey.FromCanonicalBinary(Convert.FromBase64String(i.PublicKey)),
                 Convert.FromBase64String(i.X25519PrivateKey),
-                Convert.FromBase64String(i.MlKem1024PrivateKey)));
+                Convert.FromBase64String(i.MlKem768PrivateKey)));
 
         foreach (var vector in manifest.Vectors)
         {
@@ -117,7 +117,7 @@ public sealed class TestVectorConformanceTests
 
     private sealed record VectorManifest(string Version, IReadOnlyList<IdentityManifest> Identities, IReadOnlyList<VectorManifestEntry> Vectors);
 
-    private sealed record IdentityManifest(string Id, string PublicKey, string X25519PrivateKey, string MlKem1024PrivateKey);
+    private sealed record IdentityManifest(string Id, string PublicKey, string X25519PrivateKey, string MlKem768PrivateKey);
 
     private sealed record VectorManifestEntry(string Id, string File, string Expect, string Identity, string? Reason, bool StreamingPostHocFailure, string? PlaintextSha256);
 }

@@ -25,7 +25,7 @@ inherits whatever posture its underlying primitives provide:
   Curve25519 family. None of these claims is restated by Microsoft in the BCL
   documentation.
 - **BouncyCastle for .NET** (`Org.BouncyCastle.Crypto.MLKemEngine`,
-  `MLDsaSigner`) for ML-KEM-1024 and ML-DSA-87. This is managed C# code.
+  `MLDsaSigner`) for ML-KEM-768 and ML-DSA-87. This is managed C# code.
   BouncyCastle does **not** publish a constant-time claim against power, EM,
   or microarchitectural side channels for these implementations.
 
@@ -63,7 +63,7 @@ top of the primitive, and the verdict.
 
 | File | Operation | Wrapper behaviour | Verdict |
 |---|---|---|---|
-| [`HybridKem.cs`](../src/PostQuantum.FileFormat/Crypto/HybridKem.cs) `Encapsulate` / `Decapsulate` | Bind-extract combiner: X25519 + ML-KEM-1024 shared secrets plus `classical_epk` and `pqc_ct` into HKDF-Extract, derive KEK. The two folded transcript values are public, not secret. | Both halves always run. Intermediate shared secrets and the X25519 ephemeral private key are zeroed via `SecureZero.Clear` before return. | No additional leak. |
+| [`HybridKem.cs`](../src/PostQuantum.FileFormat/Crypto/HybridKem.cs) `Encapsulate` / `Decapsulate` | Concatenate X25519 + ML-KEM-768 shared secrets, derive KEK via HKDF. | Both halves always run. Intermediate shared secrets and the X25519 ephemeral private key are zeroed via `SecureZero.Clear` before return. | No additional leak. |
 | [`HkdfCombiner.cs`](../src/PostQuantum.FileFormat/Crypto/HkdfCombiner.cs) `DeriveKek` | Concatenate `ss_classical \|\| ss_pqc \|\| dek` (latter for the DEK-wrap binding) and feed to `HKDF.DeriveKey`. | Heap copies of secret material are wrapped in `try/finally` with `SecureZero.Clear` (M-1 fix, commit `796cc67`). | No additional leak. |
 | [`DekWrapper.cs`](../src/PostQuantum.FileFormat/Crypto/DekWrapper.cs) `Wrap` / `Unwrap` | AES-256-GCM wrap of the 32-byte DEK with `file_id` as AAD. | Tag comparison is performed by `AesGcm.Decrypt` (BCL); on failure the wrapper zeros its scratch DEK buffer and returns `null`. There is no manual tag compare in the wrapper. | No additional leak. The exception throw on tag failure is itself a wall-clock signal, but the wrapper does not amplify it. |
 | [`AuthenticatedModeDecryptor.cs`](../src/PostQuantum.FileFormat/File/AuthenticatedModeDecryptor.cs) `ResolveDek` | Trial-decrypt every recipient slot with the supplied identity. | The loop runs for every recipient regardless of which slot matches. Both `HybridKem.Decapsulate` and `DekWrapper.Unwrap` execute on every iteration. The post-iteration branches (`continue` on no-match, pointer assign on first match, zero-and-discard on subsequent matches) are all O(1) work, dominated by the millisecond-scale ML-KEM decap that runs unconditionally. | Constant iteration. The branches *are* observable but the dominant work is constant. |
@@ -92,7 +92,7 @@ table is a guide for reviewers, not an endorsement.
 | Primitive | Provider on .NET 8 | Provider on .NET 10+ when platform supports it | Public CT claim? | Notes |
 |---|---|---|---|---|
 | X25519 | BouncyCastle `X25519Agreement` (for cross-runtime uniformity; the BCL Curve25519 surface is not uniform across platforms). | Same — BouncyCastle. The BCL bridge does not currently route X25519 because the BCL surface is platform-shaped. | BouncyCastle: no explicit claim. The reference C# implementation uses field arithmetic that is *intended* to be constant-time but is not formally verified. | Curve25519 is designed to make constant-time implementation natural; whether this particular implementation achieves it on RyuJIT is not a claim BouncyCastle makes. |
-| ML-KEM-1024 | BouncyCastle `MLKemEngine`. | **BCL `System.Security.Cryptography.MLKem`** when `MLKem.IsSupported` is `true` on the host (typically: .NET 10+ runtime AND a platform crypto stack that exposes ML-KEM, e.g. modern OpenSSL on Linux or CNG on Windows). Falls back to BouncyCastle when not. Selection is automatic via [`BclCryptoProvider`](../src/PostQuantum.FileFormat/Crypto/BclCryptoProvider.cs); the active provider is logged once at process start. | BCL: inherits whatever the platform crypto provider claims. Microsoft does not restate side-channel claims at the BCL surface, but the underlying providers (OpenSSL ML-KEM, CNG ML-KEM) may. BouncyCastle: no public constant-time claim. | NIST FIPS 203 specifies ML-KEM but does not mandate constant-time implementation. The BC implementation is managed C# and subject to JIT-level non-determinism; the BCL implementation is platform-backed and routes through a native provider. |
+| ML-KEM-768 | BouncyCastle `MLKemEngine`. | **BCL `System.Security.Cryptography.MLKem`** when `MLKem.IsSupported` is `true` on the host (typically: .NET 10+ runtime AND a platform crypto stack that exposes ML-KEM, e.g. modern OpenSSL on Linux or CNG on Windows). Falls back to BouncyCastle when not. Selection is automatic via [`BclCryptoProvider`](../src/PostQuantum.FileFormat/Crypto/BclCryptoProvider.cs); the active provider is logged once at process start. | BCL: inherits whatever the platform crypto provider claims. Microsoft does not restate side-channel claims at the BCL surface, but the underlying providers (OpenSSL ML-KEM, CNG ML-KEM) may. BouncyCastle: no public constant-time claim. | NIST FIPS 203 specifies ML-KEM but does not mandate constant-time implementation. The BC implementation is managed C# and subject to JIT-level non-determinism; the BCL implementation is platform-backed and routes through a native provider. |
 | ML-DSA-87 | BouncyCastle `MLDsaSigner`. | **BCL `System.Security.Cryptography.MLDsa`** under the same conditions as ML-KEM. Falls back to BouncyCastle when not. | Same as ML-KEM: BCL inherits the platform claim, BC has no public claim. | Same caveats as ML-KEM. ML-DSA signing in particular has historically been a target of side-channel research because of the rejection sampling step in Dilithium-family schemes; routing it through a platform-backed implementation when available is the main reason the BCL bridge exists. |
 | Ed25519 | BouncyCastle `Ed25519Signer`. | Same migration path. | BouncyCastle: no explicit claim. Ed25519's deterministic nonce derivation removes the most common side-channel target (RNG-based nonce reuse) from this primitive. | Ed25519 is, like X25519, designed for natural constant-time implementation; the same JIT caveat applies. |
 | AES-256-GCM | BCL `System.Security.Cryptography.AesGcm`. | Same. | On x64 with AES-NI + CLMUL: hardware-accelerated and constant-time at the CPU level. On platforms without those instructions: software fallback with no constant-time claim. | The BCL picks at runtime. PQF does not opt out of the hardware path. |
@@ -104,7 +104,7 @@ table is a guide for reviewers, not an endorsement.
 
 For an attacker model that does **not** include co-tenancy on the same
 physical CPU and does **not** include physical proximity, the dominant
-side-channel risk is wall-clock timing of ML-KEM-1024 and ML-DSA-87. The PQF
+side-channel risk is wall-clock timing of ML-KEM-768 and ML-DSA-87. The PQF
 wrapper makes those operations run in constant iteration, so a network
 attacker observing decrypt latency learns the number of recipient slots (which
 is already public from the file header) but not which one matched.
@@ -122,7 +122,7 @@ custody solution, and is not the right tool for that threat model.
 
 The following are not, and will not be, claims of this implementation:
 
-- Constant-time guarantees of BouncyCastle's ML-KEM-1024 or ML-DSA-87 against
+- Constant-time guarantees of BouncyCastle's ML-KEM-768 or ML-DSA-87 against
   power, EM, or microarchitectural side channels.
 - Constant-time guarantees of any primitive after JIT compilation. RyuJIT's
   per-tier code generation is opaque to source-level reasoning.
@@ -158,7 +158,7 @@ least one of the following:
    surface as it stabilises and as Microsoft publishes side-channel
    guidance for these primitives.
 2. An external cryptographer performs and publishes a side-channel review of
-   BouncyCastle's ML-KEM-1024 / ML-DSA-87 with a positive result on RyuJIT.
+   BouncyCastle's ML-KEM-768 / ML-DSA-87 with a positive result on RyuJIT.
 3. PQF gains a native-code provider (e.g. wrapping liboqs) with documented
    side-channel claims, and the maintainers can build, test, and ship that
    provider across the supported runtime matrix.

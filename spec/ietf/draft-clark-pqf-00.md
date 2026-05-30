@@ -61,7 +61,7 @@ informative:
 This document describes PQF (Post-Quantum File Format), a binary container
 format for encrypted files at rest that combines classical and post-quantum
 cryptographic primitives in a hybrid construction. Confidentiality is
-provided by an X25519/ML-KEM-1024 hybrid KEM; authenticity (when present)
+provided by an X25519/ML-KEM-768 hybrid KEM; authenticity (when present)
 is provided by an Ed25519/ML-DSA-87 hybrid signature. The format is
 fail-closed by construction: any deviation from the wire format, including
 unknown fields, non-deterministic encodings, reserved-bit usage, or
@@ -134,10 +134,10 @@ A PQF file is a sequence of:
 
 ## Hybrid KEM
 
-The KEM combiner is `pqf1-bind-extract-v1`. For each recipient block,
+The KEM combiner is `x-wing`. For each recipient block,
 the sender:
 
-1. Performs an X25519 key agreement and an ML-KEM-1024 encapsulation,
+1. Performs an X25519 key agreement and an ML-KEM-768 encapsulation,
    producing two shared secrets `ss_x` and `ss_kem`.
 2. Computes a salt prefixed with the byte string `PQF1-combiner-v1`
    followed by the recipient-specific binding context (see {{PQF-SPEC}}
@@ -146,7 +146,7 @@ the sender:
    {{RFC5869}} from `ss_x || ss_kem` using the prefixed salt.
 4. AES-GCM-wraps the per-file data-encryption key (DEK) under the KEK.
 
-Note that two distinct identifier strings are used: `pqf1-bind-extract-v1`
+Note that two distinct identifier strings are used: `x-wing`
 is the algorithm-identifier value carried in the CBOR header field
 `alg.combiner`, while `PQF1-combiner-v1` is the literal byte prefix of
 the HKDF salt. This is intentional and is one of the points on which
@@ -190,24 +190,21 @@ A conforming reader MUST implement at least one of:
 
 The author specifically solicits review on:
 
-1. Hybrid KEM combiner construction. As of draft 0.5 the HKDF-Extract IKM
-   binds the full KEM transcript (`ss_x25519 || ss_mlkem || classical_epk ||
-   pqc_ct`); review of this bind-extract layout is welcome.
+1. Hybrid KEM combiner construction (HKDF salt/IKM layout, label binding).
 2. Per-chunk AEAD construction and AAD binding.
 3. File-signature coverage composition.
 4. ML-KEM implicit-rejection timing and recipient-trial constant-time
    posture.
 5. Whether the footer should be AEAD-bound on unsigned files.
-
-The signature domain-separation question (distinct
-`PQF1-header-sig-v1` / `PQF1-file-sig-v1` prefixes) was resolved in draft 0.5.
+6. Whether header-signature and file-signature messages should carry
+   distinct domain-separation prefixes.
 
 # Security considerations
 
 PQF is fail-closed by design but security still depends on:
 
 - Correct implementation of the underlying primitives (X25519, Ed25519,
-  ML-KEM-1024, ML-DSA-87, AES-256-GCM, HKDF-SHA256).
+  ML-KEM-768, ML-DSA-87, AES-256-GCM, HKDF-SHA256).
 - A correct implementation of this specification.
 - A secure source of randomness on the encrypting host.
 

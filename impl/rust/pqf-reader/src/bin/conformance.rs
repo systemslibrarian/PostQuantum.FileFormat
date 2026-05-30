@@ -36,8 +36,8 @@ struct IdentityManifest {
     public_key: String,
     #[serde(rename = "X25519PrivateKey")]
     x25519_private_key: String,
-    #[serde(rename = "MlKem1024PrivateKey")]
-    mlkem1024_private_key: String,
+    #[serde(rename = "MlKem768PrivateKey")]
+    mlkem768_private_key: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -91,7 +91,7 @@ fn main() -> ExitCode {
             &im.id,
             &im.public_key,
             &im.x25519_private_key,
-            &im.mlkem1024_private_key,
+            &im.mlkem768_private_key,
         ) {
             Ok(id) => {
                 identities.insert(im.id.clone(), id);

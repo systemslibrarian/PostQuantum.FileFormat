@@ -14,7 +14,7 @@ Reader-only. This crate does not encrypt, sign, or generate keys. It exists to v
 | --- | --- |
 | `cbor` | Strict deterministic CBOR (RFC 8949 §4.2.2) decoder, custom-built — no permissive third-party CBOR codec. Rejects indefinite-length items, non-shortest integer encodings, unsorted map keys, duplicate keys, floats, unknown tags. |
 | `header` | PQF v1 header schema enforcement: required fields, exact binary lengths, algorithm-identifier strings, no unknown fields at any level. |
-| `identity` | Loads identity material from the test-vector manifest (1601-byte canonical PqfPublicKey, 32-byte X25519 scalar, 3168-byte FIPS 203 ML-KEM-1024 expanded decapsulation key). |
+| `identity` | Loads identity material from the test-vector manifest (1217-byte canonical PqfPublicKey, 32-byte X25519 scalar, 2400-byte FIPS 203 ML-KEM-768 expanded decapsulation key). |
 | `reader` | Whole-file walker, chunk validator, hybrid signature verifier, recipient-trial loop, AEAD chunk decryptor. |
 | `error` | `PqfError` + `RefusalReason` enum mirroring `PqfRefusalReason` in the .NET reference reader. |
 
@@ -25,7 +25,7 @@ All from the RustCrypto / dalek ecosystems:
 | Primitive | Crate |
 | --- | --- |
 | X25519 ECDH | `x25519-dalek` |
-| ML-KEM-1024 | `ml-kem` (RustCrypto, `MlKem1024`) |
+| ML-KEM-768 | `ml-kem` (RustCrypto, `MlKem768`) |
 | Ed25519 | `ed25519-dalek` |
 | ML-DSA-87 | `ml-dsa` (RustCrypto, `MlDsa87`) |
 | AES-256-GCM | `aes-gcm` |
