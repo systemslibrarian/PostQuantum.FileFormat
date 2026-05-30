@@ -17,17 +17,26 @@ path = "src/bin/conformance.rs"
 [dependencies]
 # Hybrid KEM
 x25519-dalek = { version = "2.0", features = ["static_secrets"] }
+# Pinned to 0.2 (not 0.3) because ml-kem 0.3 reorganized its public API:
+# `KemCore`, `Encoded`, and `EncodedSizeUser` were renamed / moved, and
+# `Ciphertext::try_from` changed shape. Bumping requires a code-side
+# rewrite of reader.rs and writer/lib.rs that's tracked as a follow-up;
+# the dep stack itself is otherwise compatible.
 ml-kem = "0.2"
 
 # Hybrid signatures
 ed25519-dalek = { version = "2.1", features = ["std"] }
+# Pinned to 0.0.4 (not 0.1) because ml-dsa 0.1 swapped to the
+# `signature` 3.0 Verifier trait and renamed the verify method. Same
+# situation as ml-kem above — dep-compatible but needs code changes
+# in reader.rs.
 ml-dsa = "0.0.4"
 
 # AEAD + hashing + KDF
 aes-gcm = "0.10"
-sha2 = "0.10"
-sha3 = "0.10"   # X-Wing combiner (SHA3-256)
-hkdf = "0.12"
+sha2 = "0.11"
+sha3 = "0.12"   # X-Wing combiner (SHA3-256)
+hkdf = "0.13"
 
 # Encoding utilities
 base64 = "0.22"
@@ -37,7 +46,11 @@ hex = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
-# Generic byte / type traits used by the RustCrypto crates
+# Generic byte / type traits. Pinned to 0.14 because x25519-dalek 2.0
+# and aes-gcm 0.10 (both still 2.x stable, not pre-release) hand back
+# `GenericArray` values from this version. The newer hybrid-array
+# successor crate comes in transitively via sha2 0.11 / hkdf 0.13 /
+# sha3 0.12; the two stacks coexist without API friction in our code.
 generic-array = "0.14"
 typenum = "1.17"
 

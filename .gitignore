@@ -10,6 +10,15 @@ artifacts/
 *.nupkg
 *.snupkg
 
+# Credential files — must never be committed. Anything matching these
+# names is held out of git permanently. If you add another secret file,
+# extend this list.
+nugetkey.txt
+nuget*.key
+.nugetkey
+secret.*
+**/credentials.*
+
 # IDE
 .vs/
 .vscode/

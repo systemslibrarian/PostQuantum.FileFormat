@@ -17,20 +17,22 @@ pqf-reader = { path = "../pqf-reader" }
 
 # Hybrid KEM
 x25519-dalek = { version = "2.0", features = ["static_secrets"] }
-# "deterministic" feature exposes EncapsulationKey::encapsulate_deterministic
+# Pinned to 0.2 (see pqf-reader/Cargo.toml for the API-rename rationale).
+# The "deterministic" feature exposes EncapsulationKey::encapsulate_deterministic
 # (encap from explicit 32-byte randomness). Required by the X-Wing KAT in
 # tests/xwing_draft_kat.rs to replay the published IETF draft vectors.
 ml-kem = { version = "0.2", features = ["deterministic"] }
 
 # Hybrid signatures
 ed25519-dalek = { version = "2.1", features = ["std", "rand_core"] }
+# Pinned to 0.0.4 (see pqf-reader/Cargo.toml for the API-rename rationale).
 ml-dsa = "0.0.4"
 
 # AEAD + hashing + KDF
 aes-gcm = "0.10"
-sha2 = "0.10"
-sha3 = "0.10"   # X-Wing combiner (SHA3-256)
-hkdf = "0.12"
+sha2 = "0.11"
+sha3 = "0.12"   # X-Wing combiner (SHA3-256)
+hkdf = "0.13"
 
 # Encoding utilities
 generic-array = "0.14"
