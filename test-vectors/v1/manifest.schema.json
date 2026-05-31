@@ -27,7 +27,7 @@
     "identity": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["Id", "PublicKey", "X25519PrivateKey", "MlKem1024PrivateKey"],
+      "required": ["Id", "PublicKey", "X25519PrivateKey", "MlKem768PrivateKey"],
       "properties": {
         "Id": {
           "type": "string",
@@ -37,17 +37,17 @@
         "PublicKey": {
           "type": "string",
           "contentEncoding": "base64",
-          "description": "Base64-encoded 1601-byte canonical public key (0x01 || X25519 || ML-KEM-1024)."
+          "description": "Base64-encoded 1217-byte canonical PqfPublicKey (0x01 || X25519 (32) || ML-KEM-768 EK (1184))."
         },
         "X25519PrivateKey": {
           "type": "string",
           "contentEncoding": "base64",
           "description": "Base64-encoded raw 32-byte X25519 scalar."
         },
-        "MlKem1024PrivateKey": {
+        "MlKem768PrivateKey": {
           "type": "string",
           "contentEncoding": "base64",
-          "description": "Base64-encoded 3168-byte FIPS 203 expanded decapsulation key (ML-KEM-1024)."
+          "description": "Base64-encoded serialized ML-KEM-768 decapsulation key produced by the crypto provider used to write the manifest. The on-disk representation is provider-defined (BouncyCastle's serialized form is the current canonical reference)."
         }
       }
     },
