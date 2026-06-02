@@ -2,6 +2,21 @@
 
 `pqf` is the command-line wrapper over the `PostQuantum.FileFormat` library.
 
+> **What this is.** `pqf` is a **demonstration / dogfooding CLI** for the
+> PostQuantum.FileFormat library and the broader PostQuantum.* ecosystem. It
+> exists so you can try the PQF container format, generate the right pair of
+> identities, encrypt and decrypt real files, and cross-check against the
+> reference test vectors and the Rust implementation. It is also useful as a
+> readable reference for how to drive the library's public API.
+>
+> **What this is NOT.** It is **not** intended as a production library
+> dependency. Other projects should depend on `PostQuantum.FileFormat`
+> directly — the `pqf` tool's API surface (its commands, exit codes, output
+> shape) is not a stability contract and may change between previews.
+>
+> EXPERIMENTAL preview; not externally audited; do not use to protect
+> irreplaceable data.
+
 ## Commands
 
 - `pqf keygen --type encrypt --public-out recipient.pub.pem --private-out recipient.identity.json`

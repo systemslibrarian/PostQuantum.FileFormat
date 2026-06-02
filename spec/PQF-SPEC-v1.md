@@ -439,9 +439,51 @@ The `is_final` flag is `0x01` for the last chunk and `0x00` otherwise. This
 binds the final-chunk position into the authentication tag and prevents
 truncation attacks.
 
-**Rationale for per-chunk HKDF + zero nonce.** Because each chunk has a
-unique, never-reused key, a fixed zero nonce satisfies NIST SP 800-38D's
-AES-GCM safety envelope by construction.
+**Rationale for per-chunk HKDF + zero nonce.**
+
+NIST SP 800-38D §8.2 permits any deterministic IV construction subject
+to the invariant that the `(key, IV)` pair MUST NOT repeat. PQF satisfies
+this by making the *key* per-chunk-unique rather than the IV: each chunk's
+`chunk_key` is `HKDF-Expand(DEK, "PQF1-chunk-v1" || i (8 bytes BE), L = 32)`
+with a per-file random 256-bit DEK and a strictly increasing 0-based
+chunk index. A fixed all-zero 12-byte IV is therefore safe iff three
+invariants hold; this specification REQUIRES all three of conforming
+writers and readers:
+
+1. **DEK freshness.** The DEK MUST be a freshly generated 256-bit value
+   from a CSPRNG, never reused across files or sessions (§6.2 step 2).
+   Any DEK reuse collapses the per-chunk-unique-key property to
+   per-chunk-unique-IV, which this construction does NOT provide.
+2. **Chunk-index uniqueness within a file.** Chunk indices MUST be
+   assigned `0, 1, ..., n-1` in encryption order with no gap and no
+   repetition. The index is bound into the per-chunk AAD (this section)
+   and into the footer count (§5.5), so any repeat or skip is detected at
+   decrypt and refused under fail-closed handling (§6.4, §8.4).
+3. **No concurrent writers on the same DEK.** The writer pipeline MUST
+   be single-producer for the chunk stream. The format does not authorize
+   multiple writers under the same DEK; a multi-writer producer would
+   have to mint a separate DEK per shard, which by invariant (1) yields a
+   separate file.
+
+**Partial-write and truncation behavior.** Truncation cannot violate
+nonce-key uniqueness — it can only remove suffix chunks. Detection is at
+the footer (§5.5) and at the `is_final` AAD bit (this section), not at
+the per-chunk IV. A reader that observes a missing final chunk or a
+footer mismatch MUST refuse the file under §8.4.
+
+**Concurrent-read safety.** Readers are stateless per chunk: chunk `i`
+is verified using only `(DEK, i, is_final, file_id)` derived from the
+header and footer plus the on-disk chunk bytes. Concurrent readers
+therefore do not affect the `(key, IV)` uniqueness reasoning.
+
+**Why not a counter nonce.** A 12-byte counter-IV construction would
+also be conforming under SP 800-38D §8.2.1 and would reduce the safety
+argument to "key reuse OR index reuse, not both." PQF chose the
+unique-key variant because it composes more cleanly with the per-chunk
+AAD binding above and keeps the IV slot available as a future,
+signed-spec extension point. Any future change to the nonce
+construction is a wire-incompatible change and requires a format
+version bump per §10.1.
 
 ### 5.3 On-disk chunk format
 
