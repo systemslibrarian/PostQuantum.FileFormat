@@ -230,14 +230,14 @@ every N — that's the design working.
 - **Status:** Experimental. Specification is at draft v0.6.0.
 - **Not externally audited.** No independent cryptographic review has been performed.
 - **Not recommended for irreplaceable data.** The byte format is frozen only at v1.0.0; drafts may produce files that are not readable by the final release.
-- **Latest preview:** [`v0.4.0-preview.2`](https://github.com/systemslibrarian/PostQuantum.FileFormat/releases/tag/v0.4.0-preview.2) on `main`, published to NuGet as [`PostQuantum.FileFormat.Cli`](https://www.nuget.org/packages/PostQuantum.FileFormat.Cli).
+- **Latest preview:** [`v0.6.0-preview.3`](https://github.com/systemslibrarian/PostQuantum.FileFormat/releases/tag/v0.6.0-preview.3) on `main`, published to NuGet as [`PostQuantum.FileFormat.Cli`](https://www.nuget.org/packages/PostQuantum.FileFormat.Cli).
 
 | Component | State |
 |---|---|
 | Specification | Draft v0.6.0 |
 | Reference implementation (.NET) | Phases 1–5 complete on `main`, CI green |
 | Test vectors | v1 set (positive + negative) committed; reproducibility gated on the unsigned subset |
-| CLI (`pqf`) | `keygen`, `encrypt`, `decrypt`, `inspect`, `fingerprint`; published as `0.4.0-preview.2` on NuGet.org |
+| CLI (`pqf`) | `keygen`, `encrypt`, `decrypt`, `inspect`, `fingerprint`; published as `0.6.0-preview.3` on NuGet.org |
 | Second-language implementation | Rust reader in `impl/rust/pqf-reader` + cross-impl conformance gate in CI |
 | Parser fuzz harness | `tests/PostQuantum.FileFormat.Fuzz` (CBOR / header / streaming targets); 60-second CI smoke pass |
 | NIST KAT cross-check | `tests/PostQuantum.FileFormat.Kat` scaffolded (verifies Decapsulate + Verify against FIPS 203/204 vectors when fetched) |

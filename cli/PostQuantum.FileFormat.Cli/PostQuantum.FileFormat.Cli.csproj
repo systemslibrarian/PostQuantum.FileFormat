@@ -9,7 +9,7 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>pqf</ToolCommandName>
     <PackageId>PostQuantum.FileFormat.Cli</PackageId>
-    <Version>0.6.0-preview.2</Version>
+    <Version>0.6.0-preview.3</Version>
     <Authors>PostQuantum.FileFormat contributors</Authors>
     <Description>pqf is the command-line tool for the Post-Quantum File Format (PQF): a hybrid post-quantum (X25519+ML-KEM-768 / Ed25519+ML-DSA-87) encrypted file container using the X-Wing KEM combiner (draft-connolly-cfrg-xwing-kem), with a deterministic CBOR header, fail-closed parser, and reference test vectors. EXPERIMENTAL preview; not externally audited; do not use to protect irreplaceable data.</Description>
     <PackageTags>post-quantum;cryptography;encryption;file-format;ml-kem;ml-dsa;x-wing;hybrid;cbor;cli;dotnet-tool</PackageTags>

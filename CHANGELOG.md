@@ -11,6 +11,47 @@ policy. Wire format changes are called out here under "Wire format."
 
 ## [Unreleased]
 
+## [0.6.0-preview.3] — 2026-06-01
+
+**Marker release tied to commit `076ce59`** ("External-review remediation:
+KAT coverage + honest spec/docs (no crypto change)"). CLI binary behavior
+is unchanged from `0.6.0-preview.2`; this preview marks the published
+`pqf` tool against the remediation commit and the SourceLink 10.0.300
+metadata refresh from the same rebase.
+
+### Added
+
+- **`HkdfCombiner.DeriveChunkKey` known-answer vectors** — five pinned
+  vectors (`tests/PostQuantum.FileFormat.Tests/Crypto/HkdfCombinerKatTests.cs`)
+  cross-checked across three independent HKDF-SHA256 implementations
+  (Python raw HMAC per RFC 5869 §2.3, .NET BCL `HKDF.Expand`, Rust
+  `hkdf` crate). Mirrored in
+  `impl/rust/pqf-writer/tests/hkdf_chunk_key_kat.rs` so the two
+  implementations cannot drift on the per-chunk key derivation.
+
+### Changed
+
+- **Spec §5.2 zero-nonce rationale expanded** — the rationale block now
+  states the three required invariants (DEK freshness, chunk-index
+  uniqueness within a file, single-writer per DEK), truncation and
+  concurrency behavior, and the explicit "why not a counter nonce"
+  trade-off. No wire-format change; the spec text now matches what the
+  implementation already requires.
+- **`SecureZero` documentation** — the helper now carries a doc comment
+  explaining that it terminates in
+  `CryptographicOperations.ZeroMemory`, which is non-elidable on every
+  supported .NET runtime. No behavior change.
+- **`cli/README.md` clarifies CLI is a demonstration / dogfooding tool**,
+  not a production library dependency. The tool itself ships unchanged.
+- **`Microsoft.SourceLink.GitHub` 8.0.0 → 10.0.300** (transitively from
+  the rebased dependabot stream). Embedded SourceLink metadata in the
+  shipped assembly reflects the new generator.
+
+### Crypto logic
+
+- **Unchanged.** The X-Wing combiner, KEM, AEAD, AAD construction,
+  and chunk pipeline are byte-identical to `0.6.0-preview.2`.
+
 ## [0.6.0-preview.2] — 2026-05-30
 
 ### Changed — build target
