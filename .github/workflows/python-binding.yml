@@ -63,7 +63,14 @@ jobs:
 
       - name: Build + install the binding into the venv
         working-directory: bindings/python
-        run: maturin develop --release
+        shell: bash
+        run: |
+          if [ -f .venv/Scripts/python.exe ]; then
+            PY="$PWD/.venv/Scripts/python.exe"
+          else
+            PY="$PWD/.venv/bin/python"
+          fi
+          maturin develop --release --interpreter "$PY"
 
       - name: Smoke test (import + parse a vector)
         working-directory: bindings/python
