@@ -20,6 +20,11 @@ console_error_panic_hook = { version = "0.1", optional = true }
 # aes-gcm (via the reader) pulls getrandom 0.2; the wasm32-unknown-unknown
 # target needs its "js" backend explicitly enabled to build.
 getrandom = { version = "0.2", features = ["js"] }
+# ml-dsa 0.1 (via the reader) pulls getrandom 0.4, which renamed the wasm
+# backend feature from "js" to "wasm_js". Both versions coexist in the
+# dep graph; we surface the 0.4 instance here under a rename so we can
+# enable wasm_js without colliding with the 0.2 alias above.
+getrandom_v04 = { package = "getrandom", version = "0.4", features = ["wasm_js"] }
 
 [features]
 default = ["console_error_panic_hook"]
