@@ -358,10 +358,11 @@ pub fn decrypt(parsed: &ParsedFile, identity: &Identity) -> Result<Vec<u8>> {
                 "ML-KEM-768 ciphertext length mismatch",
             )
         })?;
-        let ss_pqc = match mlkem_dk.decapsulate(&ct_arr) {
-            Ok(ss) => ss,
-            Err(_) => continue,
-        };
+        // ml-kem 0.3's Decapsulate is infallible — FIPS 203 implicit
+        // rejection returns a pseudorandom secret on a malformed/wrong
+        // ciphertext rather than an error, so the AEAD tag below is the
+        // sole signal of a real match (see the spec §6.5 comment above).
+        let ss_pqc = mlkem_dk.decapsulate(&ct_arr);
 
         // X-Wing combiner: KEK = SHA3-256(ss_M || ss_X || ct_X || pk_X || label)
         // (draft-connolly-cfrg-xwing-kem). pk_X is the recipient's own
