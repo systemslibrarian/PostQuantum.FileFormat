@@ -38,8 +38,8 @@ use aes_gcm::{Aes256Gcm, Nonce};
 use ed25519_dalek::{Signer, SigningKey as EdSigningKey};
 use hkdf::Hkdf;
 use ml_dsa::{MlDsa87, SigningKey as MlDsaSigningKey};
-use ml_kem::kem::Encapsulate;
-use ml_kem::{Encoded, EncodedSizeUser, KemCore, MlKem768};
+use ml_kem::ml_kem_768::EncapsulationKey as MlKem768Ek;
+use ml_kem::{Encapsulate, TryKeyInit};
 use rand::rngs::OsRng;
 use rand::RngCore;
 use sha2::{Digest, Sha256};
@@ -365,17 +365,14 @@ fn build_recipient_block(
 
     // ML-KEM-768 encapsulation -> PQ shared secret + ciphertext.
     let mlkem_pk_bytes = recipient.mlkem_pub();
-    let encoded: &Encoded<<MlKem768 as KemCore>::EncapsulationKey> = mlkem_pk_bytes
-        .try_into()
-        .map_err(|_| WriterError::RecipientFieldLength {
+    let ek = MlKem768Ek::new_from_slice(mlkem_pk_bytes).map_err(|_| {
+        WriterError::RecipientFieldLength {
             field: "ml_kem_768_public_key",
             got: mlkem_pk_bytes.len(),
             want: MLKEM_PK_LEN,
-        })?;
-    let ek = <<MlKem768 as KemCore>::EncapsulationKey as EncodedSizeUser>::from_bytes(encoded);
-    let (ct_arr, ss_pqc) = ek
-        .encapsulate(&mut OsRng)
-        .map_err(|_| WriterError::NotYetImplemented("ML-KEM-768 encapsulate failed"))?;
+        }
+    })?;
+    let (ct_arr, ss_pqc) = ek.encapsulate_with_rng(&mut OsRng);
     let pqc_ct: Vec<u8> = ct_arr.as_slice().to_vec();
 
     // X-Wing combiner per draft-connolly-cfrg-xwing-kem:
