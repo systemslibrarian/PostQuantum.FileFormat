@@ -39,7 +39,7 @@ use ed25519_dalek::{Signer, SigningKey as EdSigningKey};
 use hkdf::Hkdf;
 use ml_dsa::{MlDsa87, SigningKey as MlDsaSigningKey};
 use ml_kem::ml_kem_768::EncapsulationKey as MlKem768Ek;
-use ml_kem::{Encapsulate, TryKeyInit};
+use ml_kem::{TryKeyInit, B32};
 use rand::rngs::OsRng;
 use rand::RngCore;
 use sha2::{Digest, Sha256};
@@ -372,7 +372,18 @@ fn build_recipient_block(
             want: MLKEM_PK_LEN,
         }
     })?;
-    let (ct_arr, ss_pqc) = ek.encapsulate_with_rng(&mut OsRng);
+    // ml-kem 0.3's `encapsulate_with_rng` requires a `CryptoRng` from the
+    // newer rand_core version it re-exports — incompatible with the
+    // rand 0.8 `OsRng` we use everywhere else. The "hazmat" feature
+    // gates `encapsulate_deterministic`, which takes 32 explicit bytes
+    // and is cryptographically equivalent to `encapsulate` when those
+    // bytes come from a CSPRNG. Fill from rand 0.8's OsRng.
+    let mut seed = [0u8; 32];
+    OsRng.fill_bytes(&mut seed);
+    let seed_b32: B32 = seed.into();
+    let (ct_arr, ss_pqc) = ek
+        .encapsulate_deterministic(&seed_b32)
+        .map_err(|_| WriterError::NotYetImplemented("ML-KEM-768 encapsulate failed"))?;
     let pqc_ct: Vec<u8> = ct_arr.as_slice().to_vec();
 
     // X-Wing combiner per draft-connolly-cfrg-xwing-kem:
