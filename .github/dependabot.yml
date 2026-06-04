@@ -1,32 +1,60 @@
 version: 2
 updates:
-  # Runtime/test dependencies.
+  # Runtime/test .NET dependencies. Group non-major bumps into one PR.
+  # BouncyCastle and other crypto primitives stay ungrouped so each major
+  # bump gets eyes-on review.
   - package-ecosystem: "nuget"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 10
     labels:
       - "dependencies"
       - "dotnet"
-    # Cryptographic primitives are sensitive. Don't auto-merge.
+    groups:
+      dotnet-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+        exclude-patterns:
+          - "BouncyCastle*"
+      dotnet-major-non-crypto:
+        update-types:
+          - "major"
+        exclude-patterns:
+          - "BouncyCastle*"
     ignore:
+      # Cryptographic primitives are sensitive. Don't auto-merge majors.
       - dependency-name: "BouncyCastle.Cryptography"
         update-types: ["version-update:semver-major"]
 
-  # Rust second-source reader.
+  # Rust second-source reader. Group non-crypto crates; leave the PQ
+  # primitives and their core deps ungrouped for manual review.
   - package-ecosystem: "cargo"
     directory: "/impl/rust/pqf-reader"
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 10
     labels:
       - "dependencies"
       - "rust"
+    groups:
+      rust-non-crypto:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "ml-kem"
+          - "ml-dsa"
+          - "hkdf"
+          - "sha2"
+          - "sha3"
+          - "generic-array"
+          - "rand_core"
+          - "zeroize"
 
-  # GitHub Actions.
+  # GitHub Actions. Safe to group everything.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -36,3 +64,7 @@ updates:
     labels:
       - "dependencies"
       - "ci"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
