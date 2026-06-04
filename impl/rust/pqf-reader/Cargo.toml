@@ -26,11 +26,11 @@ ml-kem = "0.2"
 
 # Hybrid signatures
 ed25519-dalek = { version = "2.1", features = ["std"] }
-# Pinned to 0.0.4 (not 0.1) because ml-dsa 0.1 swapped to the
-# `signature` 3.0 Verifier trait and renamed the verify method. Same
-# situation as ml-kem above — dep-compatible but needs code changes
-# in reader.rs.
-ml-dsa = "0.0.4"
+# ml-dsa 0.1 routes the `signature::Verifier::verify` trait method to
+# FIPS 204 Algorithm 8 (no domain separator). BouncyCastle's pure
+# ML-DSA-87 signs with Algorithm 3 (with the empty-context prefix), so
+# the verifier in reader.rs uses `verify_with_context(msg, &[], &sig)`.
+ml-dsa = "0.1.0"
 
 # AEAD + hashing + KDF
 aes-gcm = "0.10"

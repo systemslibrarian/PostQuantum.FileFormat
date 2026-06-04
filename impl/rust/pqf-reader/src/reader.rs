@@ -533,7 +533,7 @@ fn verify_mldsa87(pub_key: &[u8], message: &[u8], sig: &[u8]) -> bool {
     let Some(parsed) = ml_dsa::Signature::<MlDsa87>::decode(&sig_encoded) else {
         return false;
     };
-    vk.verify(message, &parsed).is_ok()
+    vk.verify_with_context(message, &[], &parsed)
 }
 
 fn decode_mlkem_dk(
