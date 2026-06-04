@@ -22,7 +22,7 @@ x25519-dalek = { version = "2.0", features = ["static_secrets"] }
 # `Ciphertext::try_from` changed shape. Bumping requires a code-side
 # rewrite of reader.rs and writer/lib.rs that's tracked as a follow-up;
 # the dep stack itself is otherwise compatible.
-ml-kem = "0.2"
+ml-kem = "0.3"
 
 # Hybrid signatures
 ed25519-dalek = { version = "2.1", features = ["std"] }
