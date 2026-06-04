@@ -17,12 +17,15 @@ path = "src/bin/conformance.rs"
 [dependencies]
 # Hybrid KEM
 x25519-dalek = { version = "2.0", features = ["static_secrets"] }
-# Pinned to 0.2 (not 0.3) because ml-kem 0.3 reorganized its public API:
-# `KemCore`, `Encoded`, and `EncodedSizeUser` were renamed / moved, and
-# `Ciphertext::try_from` changed shape. Bumping requires a code-side
-# rewrite of reader.rs and writer/lib.rs that's tracked as a follow-up;
-# the dep stack itself is otherwise compatible.
-ml-kem = "0.2"
+# ml-kem 0.3 moved KemCore to `kem::Kem`, replaced `EncodedSizeUser` with
+# the (deprecated but interop-required) `ExpandedKeyEncoding` trait, and
+# moved per-parameter type aliases (Ciphertext, DecapsulationKey) into
+# `ml_kem::ml_kem_768`. The 2400-byte FIPS 203 expanded layout that
+# BouncyCastle's `MLKemPrivateKeyParameters.GetEncoded()` produces is
+# preserved bit-for-bit, so interop still holds; reader.rs uses
+# `from_expanded_bytes` rather than the new seed-based init because BC
+# does not expose the d||z seed.
+ml-kem = "0.3.0"
 
 # Hybrid signatures
 ed25519-dalek = { version = "2.1", features = ["std"] }

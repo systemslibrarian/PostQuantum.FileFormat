@@ -30,9 +30,8 @@
 //! every public X-Wing implementation we have spot-checked.
 
 use hex::FromHex;
-use ml_kem::{kem::EncapsulationKey as MlKemEncapsulationKey, KemCore, MlKem768};
-use ml_kem::{Encoded, EncodedSizeUser};
-use ml_kem::EncapsulateDeterministic;
+use ml_kem::ml_kem_768::EncapsulationKey as MlKem768Ek;
+use ml_kem::{TryKeyInit, B32};
 use sha3::{Digest, Sha3_256};
 use x25519_dalek::{PublicKey, StaticSecret};
 
@@ -135,18 +134,14 @@ fn xwing_combiner_matches_published_draft_vector() {
 
     // ---- (4) ML-KEM-768 deterministic encapsulation ----------------------
     // Load pk_M as an ML-KEM-768 EncapsulationKey and feed it the
-    // deterministic `m`. The crate's "deterministic" feature exposes
-    // exactly this entry point; we use no internal/hazmat hooks.
-    type Ek = <MlKem768 as KemCore>::EncapsulationKey;
-    let pk_m_encoded: &Encoded<Ek> = pk_m_bytes
-        .try_into()
+    // deterministic `m`. ml-kem 0.3 promoted `encapsulate_deterministic`
+    // to an inherent method gated behind the `hazmat` feature (renamed
+    // from 0.2's `deterministic` feature); the trait `EncapsulateDeterministic`
+    // is gone.
+    let ek = MlKem768Ek::new_from_slice(pk_m_bytes)
         .expect("pk_M length matches ML-KEM-768 ek encoding");
-    let ek: MlKemEncapsulationKey<ml_kem::MlKem768Params> =
-        <Ek as EncodedSizeUser>::from_bytes(pk_m_encoded);
-    let m_b32: ml_kem::B32 = m_arr.into();
-    let (ct_m, ss_m) = ek
-        .encapsulate_deterministic(&m_b32)
-        .expect("ML-KEM-768 EncapDeterministic");
+    let m_b32: B32 = m_arr.into();
+    let (ct_m, ss_m) = ek.encapsulate_deterministic(&m_b32);
     // Sanity: the ML-KEM-768 ciphertext is 1088 bytes.
     assert_eq!(ct_m.as_slice().len(), 1088, "ct_M length");
     assert_eq!(ss_m.as_slice().len(), 32, "ss_M length");

@@ -6,8 +6,10 @@ use aes_gcm::{Aes256Gcm, Nonce};
 use ed25519_dalek::{Signature as EdSig, Verifier, VerifyingKey as EdVerifyingKey};
 use hkdf::Hkdf;
 
+use ml_kem::array::Array;
 use ml_kem::kem::Decapsulate;
-use ml_kem::{Encoded, EncodedSizeUser, KemCore, MlKem768};
+use ml_kem::ml_kem_768::{Ciphertext as MlKem768Ct, DecapsulationKey as MlKem768Dk};
+use ml_kem::ExpandedKeyEncoding;
 use sha2::{Digest, Sha256};
 use sha3::Sha3_256;
 use x25519_dalek::{PublicKey as XPub, StaticSecret as XSec};
@@ -350,17 +352,17 @@ pub fn decrypt(parsed: &ParsedFile, identity: &Identity) -> Result<Vec<u8>> {
         let ss_classical = x_sec.diffie_hellman(&epk);
 
         // ML-KEM-768 decapsulation. ss_M (X-Wing) = ML-KEM-Decap(dk_M, ct_M).
-        let ct_arr =
-            ml_kem::Ciphertext::<MlKem768>::try_from(r.pqc_ct.as_slice()).map_err(|_| {
-                PqfError::new(
-                    RefusalReason::BinaryFieldLengthMismatch,
-                    "ML-KEM-768 ciphertext length mismatch",
-                )
-            })?;
-        let ss_pqc = match mlkem_dk.decapsulate(&ct_arr) {
-            Ok(ss) => ss,
-            Err(_) => continue,
-        };
+        let ct_arr = MlKem768Ct::try_from(r.pqc_ct.as_slice()).map_err(|_| {
+            PqfError::new(
+                RefusalReason::BinaryFieldLengthMismatch,
+                "ML-KEM-768 ciphertext length mismatch",
+            )
+        })?;
+        // ml-kem 0.3's Decapsulate is infallible — FIPS 203 implicit
+        // rejection returns a pseudorandom secret on a malformed/wrong
+        // ciphertext rather than an error, so the AEAD tag below is the
+        // sole signal of a real match (see the spec §6.5 comment above).
+        let ss_pqc = mlkem_dk.decapsulate(&ct_arr);
 
         // X-Wing combiner: KEK = SHA3-256(ss_M || ss_X || ct_X || pk_X || label)
         // (draft-connolly-cfrg-xwing-kem). pk_X is the recipient's own
@@ -536,15 +538,21 @@ fn verify_mldsa87(pub_key: &[u8], message: &[u8], sig: &[u8]) -> bool {
     vk.verify_with_context(message, &[], &parsed)
 }
 
-fn decode_mlkem_dk(
-    bytes: &[u8],
-) -> Result<<MlKem768 as KemCore>::DecapsulationKey> {
-    type Dk = <MlKem768 as KemCore>::DecapsulationKey;
-    let encoded: &Encoded<Dk> = bytes.try_into().map_err(|_| {
+fn decode_mlkem_dk(bytes: &[u8]) -> Result<MlKem768Dk> {
+    let encoded: &Array<u8, <MlKem768Dk as ExpandedKeyEncoding>::EncodedSize> =
+        bytes.try_into().map_err(|_| {
+            PqfError::new(
+                RefusalReason::BinaryFieldLengthMismatch,
+                format!(
+                    "ML-KEM-768 decapsulation key length {} != expected",
+                    bytes.len()
+                ),
+            )
+        })?;
+    MlKem768Dk::from_expanded_bytes(encoded).map_err(|_| {
         PqfError::new(
             RefusalReason::BinaryFieldLengthMismatch,
-            format!("ML-KEM-768 decapsulation key length {} != expected", bytes.len()),
+            "ML-KEM-768 expanded key validation failed".to_string(),
         )
-    })?;
-    Ok(<Dk as EncodedSizeUser>::from_bytes(encoded))
+    })
 }

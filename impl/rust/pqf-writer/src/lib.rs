@@ -38,8 +38,8 @@ use aes_gcm::{Aes256Gcm, Nonce};
 use ed25519_dalek::{Signer, SigningKey as EdSigningKey};
 use hkdf::Hkdf;
 use ml_dsa::{MlDsa87, SigningKey as MlDsaSigningKey};
-use ml_kem::kem::Encapsulate;
-use ml_kem::{Encoded, EncodedSizeUser, KemCore, MlKem768};
+use ml_kem::ml_kem_768::EncapsulationKey as MlKem768Ek;
+use ml_kem::{TryKeyInit, B32};
 use rand::rngs::OsRng;
 use rand::RngCore;
 use sha2::{Digest, Sha256};
@@ -365,17 +365,23 @@ fn build_recipient_block(
 
     // ML-KEM-768 encapsulation -> PQ shared secret + ciphertext.
     let mlkem_pk_bytes = recipient.mlkem_pub();
-    let encoded: &Encoded<<MlKem768 as KemCore>::EncapsulationKey> = mlkem_pk_bytes
-        .try_into()
-        .map_err(|_| WriterError::RecipientFieldLength {
+    let ek = MlKem768Ek::new_from_slice(mlkem_pk_bytes).map_err(|_| {
+        WriterError::RecipientFieldLength {
             field: "ml_kem_768_public_key",
             got: mlkem_pk_bytes.len(),
             want: MLKEM_PK_LEN,
-        })?;
-    let ek = <<MlKem768 as KemCore>::EncapsulationKey as EncodedSizeUser>::from_bytes(encoded);
-    let (ct_arr, ss_pqc) = ek
-        .encapsulate(&mut OsRng)
-        .map_err(|_| WriterError::NotYetImplemented("ML-KEM-768 encapsulate failed"))?;
+        }
+    })?;
+    // ml-kem 0.3's `encapsulate_with_rng` requires a `CryptoRng` from the
+    // newer rand_core version it re-exports — incompatible with the
+    // rand 0.8 `OsRng` we use everywhere else. The "hazmat" feature
+    // gates `encapsulate_deterministic`, which takes 32 explicit bytes
+    // and is cryptographically equivalent to `encapsulate` when those
+    // bytes come from a CSPRNG. Fill from rand 0.8's OsRng.
+    let mut seed = [0u8; 32];
+    OsRng.fill_bytes(&mut seed);
+    let seed_b32: B32 = seed.into();
+    let (ct_arr, ss_pqc) = ek.encapsulate_deterministic(&seed_b32);
     let pqc_ct: Vec<u8> = ct_arr.as_slice().to_vec();
 
     // X-Wing combiner per draft-connolly-cfrg-xwing-kem:
