@@ -381,9 +381,7 @@ fn build_recipient_block(
     let mut seed = [0u8; 32];
     OsRng.fill_bytes(&mut seed);
     let seed_b32: B32 = seed.into();
-    let (ct_arr, ss_pqc) = ek
-        .encapsulate_deterministic(&seed_b32)
-        .map_err(|_| WriterError::NotYetImplemented("ML-KEM-768 encapsulate failed"))?;
+    let (ct_arr, ss_pqc) = ek.encapsulate_deterministic(&seed_b32);
     let pqc_ct: Vec<u8> = ct_arr.as_slice().to_vec();
 
     // X-Wing combiner per draft-connolly-cfrg-xwing-kem:

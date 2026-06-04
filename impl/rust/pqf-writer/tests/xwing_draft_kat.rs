@@ -141,9 +141,7 @@ fn xwing_combiner_matches_published_draft_vector() {
     let ek = MlKem768Ek::new_from_slice(pk_m_bytes)
         .expect("pk_M length matches ML-KEM-768 ek encoding");
     let m_b32: B32 = m_arr.into();
-    let (ct_m, ss_m) = ek
-        .encapsulate_deterministic(&m_b32)
-        .expect("ML-KEM-768 EncapDeterministic");
+    let (ct_m, ss_m) = ek.encapsulate_deterministic(&m_b32);
     // Sanity: the ML-KEM-768 ciphertext is 1088 bytes.
     assert_eq!(ct_m.as_slice().len(), 1088, "ct_M length");
     assert_eq!(ss_m.as_slice().len(), 32, "ss_M length");
