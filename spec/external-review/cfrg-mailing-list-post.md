@@ -61,12 +61,17 @@ random round-trips, and a replay of the published X-Wing draft KAT).
 
 Documents (under MIT license):
 
-- 3-page reviewer overview: [link to PQF-OVERVIEW.md on main]
-- Normative spec (1300+ lines): [link to PQF-SPEC-v1.md]
+- 3-page reviewer overview:
+  https://github.com/systemslibrarian/PostQuantum.FileFormat/blob/main/spec/PQF-OVERVIEW.md
+- Normative spec (1300+ lines):
+  https://github.com/systemslibrarian/PostQuantum.FileFormat/blob/main/spec/PQF-SPEC-v1.md
 - Design rationale, including §10 "what reviewers should focus on" and
-  §11 "open questions": [link to PQF-DESIGN-RATIONALE-v1.md]
-- IETF Internet-Draft (not yet submitted): [link to ietf/draft-clark-pqf-00]
-- Conformance vectors: [link to test-vectors/v1/]
+  §11 "open questions":
+  https://github.com/systemslibrarian/PostQuantum.FileFormat/blob/main/spec/PQF-DESIGN-RATIONALE-v1.md
+- IETF Internet-Draft (not yet submitted):
+  https://github.com/systemslibrarian/PostQuantum.FileFormat/blob/main/spec/ietf/draft-clark-pqf-00.md
+- Conformance vectors:
+  https://github.com/systemslibrarian/PostQuantum.FileFormat/tree/main/test-vectors/v1
 
 The status is explicitly DRAFT / EXPERIMENTAL — no external
 cryptographic review has happened to date, only LLM-assisted review
