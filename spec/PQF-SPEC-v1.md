@@ -704,8 +704,8 @@ attempts are discarded and zeroed.
 
 **Recipient count guidance.** Implementations SHOULD support at least 100
 recipients per file. Cost scales linearly: each trial requires one X25519
-scalar multiplication, one ML-KEM-1024 decapsulation, one HKDF derivation,
-and one AES-GCM decrypt attempt.
+scalar multiplication, one ML-KEM-768 decapsulation, one SHA3-256
+invocation (the X-Wing combiner, §2.4), and one AES-GCM decrypt attempt.
 
 ### 6.6 Secret hygiene
 
@@ -1065,8 +1065,8 @@ future versions of the v1 reference implementation.
 | Confidentiality at rest (hybrid PQ) | §2.1 X-Wing (X25519+ML-KEM-768), §2.3 AEAD, §2.4 combiner |
 | Payload integrity | Per-chunk AEAD tags, footer validation |
 | Sender authenticity (optional) | §2.2 hybrid signatures |
-| Replay resistance across files | `file_id` in AAD and salt (§8.5) |
-| Cross-recipient isolation | `recipient_index` in salt (§8.7) |
+| Replay resistance across files | `file_id` in AEAD AAD (§8.5) |
+| Cross-recipient isolation | `recipient_index` in DEK-wrap AAD plus `pk_X` bound into the X-Wing combiner (§8.7) |
 | Downgrade resistance | Exact-match `alg` validation (§8.6) |
 | Truncation resistance | `is_final` in AAD + footer counts + file signature |
 | Weak recipient deniability | ML-KEM implicit rejection + constant-time trial (§8.8) |
@@ -1154,39 +1154,93 @@ Required negative test vectors:
 - TV-NEG-020: Chunk length exceeds remaining file bounds — refuse
 - TV-NEG-021: `created` not in RFC 3339 UTC "Z" form — refuse
 - TV-NEG-022: Streaming Mode signed file with post-hoc signature failure — caller MUST receive authentication failure signal
+- TV-NEG-023: Unknown top-level header field (header-schema mutation variant) — refuse
+- TV-NEG-024: Unknown field inside `alg` (header-schema mutation variant) — refuse
+- TV-NEG-025: Unknown field inside a recipient block — refuse
+- TV-NEG-026: Unknown field inside `signer` — refuse
+- TV-NEG-027: Algorithm-identifier mismatch (e.g. `kem` = "x25519+ml-kem-1024") — refuse
+- TV-NEG-028: Missing required field (`chunk_size` removed) — refuse
+- TV-NEG-029: Empty `recipients` array — refuse
+- TV-NEG-030: Malformed `created` timestamp (non-UTC offset) — refuse
+- TV-NEG-031: Invalid `chunk_size` (not a power of 2 in [4096, 16777216]) — refuse
+- TV-NEG-032: Binary field length mismatch (`file_id` not 16 bytes) — refuse
+- TV-NEG-033: Duplicate CBOR map key in the header — refuse
+
+`SPEC-CHECKLIST.md` §11 maps every fail-closed refusal class to its
+portable test-vector ID. The manifest in
+`test-vectors/v1/manifest.json` (see §12.2) is authoritative for each
+vector's expected `RefusalReason`.
 
 ### 12.2 Test vector file format
 
-Each test vector is a directory containing a `manifest.json` and fixture files:
+A spec version's conformance suite ships as **one** `manifest.json` per
+spec version plus a `cases/` directory of `.pqf` fixture files. The
+authoritative JSON Schema is
+[`test-vectors/v1/manifest.schema.json`](../test-vectors/v1/manifest.schema.json);
+the shape is summarized below for spec readers.
 
 ```json
 {
-  "id": "TV-003",
-  "description": "Three recipients, signed, 100 KiB plaintext",
-  "spec_version": "1",
-  "kind": "positive",
-  "processing_mode": "authenticated",
-  "inputs": {
-    "recipient_identities": ["identity-alice.bin", "identity-bob.bin", "identity-carol.bin"],
-    "signer_identity": "signer.bin",
-    "plaintext": "plaintext.bin",
-    "randomness": "randomness.bin"
-  },
-  "expected": {
-    "file": "expected.pqf",
-    "decrypted_plaintext_sha256": "<hex>"
-  }
+  "Version": "v1",
+  "Identities": [
+    {
+      "Id": "id-a",
+      "PublicKey":          "<base64 of 1217-byte canonical PqfPublicKey>",
+      "X25519PrivateKey":   "<base64 of raw 32-byte X25519 scalar>",
+      "MlKem768PrivateKey": "<base64 of ML-KEM-768 decapsulation key, provider-serialized>"
+    }
+  ],
+  "Vectors": [
+    {
+      "Id": "TV-001",
+      "File": "cases/TV-001.pqf",
+      "Expect": "success",
+      "Identity": "id-a",
+      "Reason": null,
+      "StreamingPostHocFailure": false,
+      "PlaintextSha256": "<hex sha256 of expected plaintext>"
+    },
+    {
+      "Id": "TV-NEG-001",
+      "File": "cases/TV-NEG-001.pqf",
+      "Expect": "refuse",
+      "Identity": "id-a",
+      "Reason": "MagicMismatch",
+      "StreamingPostHocFailure": false,
+      "PlaintextSha256": null
+    }
+  ]
 }
 ```
 
-The `processing_mode` field MAY be `"authenticated"`, `"streaming"`, or
-`"either"`.
+Field summary:
 
-Binary fixture format for decryption identities:
-`version (0x01) || x25519_sk (32) || x25519_pk (32) || mlkem_sk (2400) || mlkem_pk (1184)`
+- `Version` — manifest format version; `"v1"` for the canonical
+  committed set, `"v1-differential"` for ephemeral randomized batches
+  produced by the differential test driver.
+- `Identities[]` — non-empty list of named test identities; each
+  vector references one by `Identity`.
+- `Identities[].PublicKey` — base64 of the 1217-byte canonical
+  `PqfPublicKey` (`0x01 || X25519 (32) || ML-KEM-768 EK (1184)`).
+- `Identities[].MlKem768PrivateKey` — base64 of the ML-KEM-768
+  decapsulation key as serialized by the writing implementation's
+  crypto provider. The serialized form is provider-defined;
+  BouncyCastle's serialized form is the current canonical
+  reference. Cross-implementation readers may need to translate.
+- `Vectors[].Expect` — exactly `"success"` or `"refuse"`.
+- `Vectors[].Reason` — for refused vectors, the `RefusalReason`
+  enum value the reader MUST return (e.g. `"MagicMismatch"`,
+  `"UnknownHeaderField"`, `"AlgorithmIdentifierMismatch"`); `null`
+  for successful vectors.
+- `Vectors[].StreamingPostHocFailure` — `true` only for the
+  streaming-mode post-hoc signature failure case (TV-NEG-022 in
+  v1).
+- `Vectors[].PlaintextSha256` — for successful vectors, the hex
+  SHA-256 of the expected decrypted plaintext; `null` for refused
+  vectors.
 
-Binary fixture format for signing identities:
-`version (0x01) || ed25519_sk (32) || ed25519_pk (32) || mldsa_sk (4896) || mldsa_pk (2592)`
+The schema enforces `additionalProperties: false` at every level — an
+unknown JSON field in the manifest is itself a conformance failure.
 
 ### 12.3 Spec authority
 

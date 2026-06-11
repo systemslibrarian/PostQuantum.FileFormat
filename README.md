@@ -366,17 +366,27 @@ PQF is **spec-first, not implementation-first.** The specification is the source
 
 ## Cryptographic review wanted
 
-PQF is explicitly seeking review from cryptographers and post-quantum implementers on the following normative sections of [spec/PQF-SPEC-v1.md](spec/PQF-SPEC-v1.md):
+PQF is explicitly seeking review from cryptographers and post-quantum implementers. **Start here** if you're reviewing:
 
-- **§2.4** — Hybrid KEM combiner construction (HKDF salt/IKM layout, label binding). Note: the spec uses two distinct strings here — `pqf1-concat-extract-v1` is the algorithm-identifier value placed in the CBOR header field `alg.combiner`; `PQF1-combiner-v1` is the literal byte prefix of the HKDF salt. Both are intentional; the in-tree reference implementation lives in [`HkdfCombiner.cs`](src/PostQuantum.FileFormat/Crypto/HkdfCombiner.cs).
-- **§5.2** — Per-chunk AEAD construction and AAD binding (`file_id || chunk_index || is_final`).
+- [`spec/PQF-OVERVIEW.md`](./spec/PQF-OVERVIEW.md) — a 3-page reviewer overview that summarizes goals, threat model, primitives, wire format, and the five decisions worth focusing on. Read this first.
+- [`spec/external-review/REVIEW-STATUS.md`](./spec/external-review/REVIEW-STATUS.md) — honest layer-by-layer record of what's been reviewed (X-Wing combiner ✅ inherited from upstream), what's been LLM-assisted only (⚠️), and what hasn't been touched yet (❌).
+
+The normative sections most worth scrutiny in [spec/PQF-SPEC-v1.md](spec/PQF-SPEC-v1.md):
+
+- **§2.4** — X-Wing combiner adoption (PQF 0.6 dropped the in-house `pqf1-bind-extract-v1` HKDF construction for the standardized X-Wing combiner from draft-connolly-cfrg-xwing-kem). KEK derivation is now `SHA3-256(ss_M || ss_X || ct_X || pk_X || XWING_LABEL)`. The in-tree implementation lives in [`XWingKem.cs`](src/PostQuantum.FileFormat/Crypto/XWingKem.cs). What review should focus on is the PQF-specific glue around X-Wing: per-recipient and per-file binding pushed to the DEK-wrap AEAD AAD (`file_id || recipient_index`) since the X-Wing combiner has no salt slot for either.
+- **§5.2** — Per-chunk AEAD construction and AAD binding (`file_id || chunk_index || is_final`), with per-chunk-rekey + zero nonce.
 - **§6.2 step 9** — File-signature coverage composition (`file_id || sha256(chunks) || footer`).
 - **§6.3 step 7** — ML-KEM implicit-rejection timing and recipient-trial constant-time posture.
 - **§6.4** — Authenticated vs Streaming Mode failure-signaling contract.
 
-A running list of spec-level questions the author would value review on — including the open question of whether header-signature and file-signature messages should carry distinct domain-separation prefixes (§6.2), and whether the footer should be AEAD-bound on unsigned files — lives in [`spec/PQF-DESIGN-RATIONALE-v1.md` §11](./spec/PQF-DESIGN-RATIONALE-v1.md#11-open-questions-the-author-acknowledges).
+A running list of spec-level questions the author would value review on lives in [`spec/PQF-DESIGN-RATIONALE-v1.md` §11](./spec/PQF-DESIGN-RATIONALE-v1.md#11-open-questions-the-author-acknowledges).
 
-If you find an issue, please open a [GitHub Issue](https://github.com/systemslibrarian/PostQuantum.FileFormat/issues) or start a thread under [Discussions](https://github.com/systemslibrarian/PostQuantum.FileFormat/discussions). Reproducible refusal cases are especially welcome and will be folded into the negative test-vector set.
+**How to give feedback:**
+
+- Quick reaction or pointer: open a [GitHub Issue](https://github.com/systemslibrarian/PostQuantum.FileFormat/issues) or start a thread under [Discussions](https://github.com/systemslibrarian/PostQuantum.FileFormat/discussions).
+- Reproducible refusal cases: open an issue with the vector — these get folded into the negative test-vector set under [`test-vectors/v1/cases/TV-NEG-*.pqf`](./test-vectors/v1/).
+- Security-sensitive findings: use the private channel in [`SECURITY.md`](./SECURITY.md).
+- Want to verify the conformance claim yourself before reviewing? See [`test-vectors/QUICKSTART.md`](./test-vectors/QUICKSTART.md) — two commands, ~2 minutes, watches the independent Rust reader accept every .NET-written vector.
 
 ## Where to go next
 
