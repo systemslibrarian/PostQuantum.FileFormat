@@ -260,8 +260,7 @@ an adversary who can choose the ciphertext, or only against a passive
 observer? The spec language is conservative; a tighter or looser bound
 may be provable.
 
-### 5.3 The per-chunk construction under partial-write / truncation /
-recovery (§4.3)
+### 5.3 The per-chunk construction under partial-write / truncation / recovery (§4.3)
 
 The construction is correct under the three spec invariants. The spec
 specifies refusal semantics on truncation. What has not been examined:

@@ -1353,14 +1353,3 @@ A CLI tool named `pqf` is published as a .NET global tool. Subcommands:
 The reference implementation exposes a deterministic randomness source via
 an internal API for test vector generation only. Production builds MUST NOT
 expose this API.
-
----
-
-## Document history
-
-| Version | Date | Notes |
-|---|---|---|
-| 0.3.1 | 2026-04-21 | Polishing pass: CBOR determinism enforcement, header length justification, chunk length bounds, footer byte identity, Streaming Mode failure signaling, refusal-list additions |
-| 0.3.0 | 2026-04-21 | ChatGPT review incorporated; CBOR encoding; dual key format; structured footer; conformance/versioning/threat sections; impl notes moved to appendix |
-| 0.2.0 | 2026-04-21 | Grok review incorporated |
-| 0.1.0 | 2026-04-21 | Initial DRAFT |
