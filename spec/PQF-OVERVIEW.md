@@ -53,7 +53,7 @@ fail-closed by construction.
 
 | Slot | Primitive | Reference |
 |---|---|---|
-| Hybrid KEM | **X-Wing** = X25519 + ML-KEM-768 | draft-connolly-cfrg-xwing-kem; IND-CCA in ROM/QROM per Barbosa et al. 2024 |
+| Hybrid KEM | **X-Wing** = X25519 + ML-KEM-768 | draft-connolly-cfrg-xwing-kem; classical IND-CCA in the ROM and post-quantum IND-CCA in the standard model per Barbosa et al. 2024 |
 | Hybrid signature | Ed25519 + ML-DSA-87 (concat: 64 + 4627 = 4691 bytes) | RFC 8032, FIPS 204 |
 | Payload AEAD | AES-256-GCM, per-chunk-rekeyed | NIST SP 800-38D |
 | KDF | HKDF-SHA-256 (chunk-key expansion); SHA3-256 (X-Wing combiner) | RFC 5869, FIPS 202 |

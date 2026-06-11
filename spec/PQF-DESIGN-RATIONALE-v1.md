@@ -94,7 +94,8 @@ PQF 0.3.x used X25519 + ML-KEM-1024 with an in-house HKDF
 (both ChatGPT and Grok) flagged the in-house combiner as the single
 highest-risk choice in the format and recommended switching to
 **X-Wing** (draft-connolly-cfrg-xwing-kem), which has external IND-CCA
-proofs in ROM and QROM (Barbosa et al., 2024). X-Wing is defined for
+proofs — classical in the ROM and post-quantum in the standard model
+(Barbosa et al., 2024). X-Wing is defined for
 ML-KEM-768; using ML-KEM-1024 would have required a non-standard
 variant of the combiner and reintroduced exactly the "Paul's special
 sauce" problem we were trying to remove.
@@ -189,8 +190,9 @@ called out:
    X-Wing binds `ct_X` and `pk_X` directly into the SHA-3 input, which
    removes a class of multi-target / re-encapsulation attacks.
 2. **No external proof.** "Aligned with
-   draft-ounsworth-cfrg-kem-combiners" is not a proof. X-Wing has IND-CCA
-   proofs in ROM/QROM from Barbosa et al. (2024).
+   draft-ounsworth-cfrg-kem-combiners" is not a proof. X-Wing has
+   IND-CCA proofs — classical in the ROM and post-quantum in the
+   standard model — from Barbosa et al. (2024).
 3. **Author of combiner = author of format.** Every reviewer would have
    to evaluate this construction independently. Removing it removes that
    ask.

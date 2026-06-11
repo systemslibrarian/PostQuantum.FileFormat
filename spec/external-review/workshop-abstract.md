@@ -47,8 +47,9 @@ an opt-in, at the format level, in a small, fail-closed container that
 can be implemented end-to-end in an afternoon.
 
 PQF v1 uses **X-Wing** (X25519 + ML-KEM-768) per
-draft-connolly-cfrg-xwing-kem as its hybrid KEM combiner, with
-IND-CCA proofs in ROM and QROM (Barbosa et al., 2024). Hybrid
+draft-connolly-cfrg-xwing-kem as its hybrid KEM combiner, with IND-CCA
+proofs — classical in the ROM and post-quantum in the standard model
+(Barbosa et al., 2024). Hybrid
 signatures (Ed25519 + ML-DSA-87, concatenated) are optional. The
 payload is AES-256-GCM chunked, with per-chunk-rekeyed HKDF, a fixed
 zero nonce, and an `is_final` AAD bit that makes truncation an AEAD

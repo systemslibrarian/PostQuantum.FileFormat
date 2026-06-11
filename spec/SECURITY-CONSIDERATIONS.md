@@ -46,7 +46,7 @@ underlying library, PQF's corresponding property fails.
 |---|---|---|
 | X25519 | DH-CKS hardness | RFC 7748 |
 | ML-KEM-768 | IND-CCA2 | FIPS 203 (Category 3) |
-| X-Wing combiner | IND-CCA in ROM and QROM, given the above | draft-connolly-cfrg-xwing-kem; Barbosa, Boudgoust, Bouvier, Damgård, Kaledin, Pointcheval, Renes 2024 |
+| X-Wing combiner | classical IND-CCA in the ROM and post-quantum IND-CCA in the standard model, given the above | draft-connolly-cfrg-xwing-kem; Barbosa, Connolly, Duarte, Kaiser, Schwabe, Varner, Westerbaan 2024 |
 | Ed25519 | EUF-CMA | RFC 8032 |
 | ML-DSA-87 | sUF-CMA | FIPS 204 (Category 5) |
 | AES-256-GCM | IND-CCA2 and INT-CTXT in the per-(key, IV) sense | NIST SP 800-38D |
@@ -137,9 +137,10 @@ KEK = SHA3-256( ss_M || ss_X || ct_X || pk_X || XWING_LABEL )
 ```
 
 This is the construction defined and analyzed in
-draft-connolly-cfrg-xwing-kem, with IND-CCA proofs in ROM and QROM. PQF
-inherits the proof unchanged for this step. The PQF-specific glue (per
-§4.2) is at the next layer.
+draft-connolly-cfrg-xwing-kem, with IND-CCA proofs — classical in the
+ROM and post-quantum in the standard model. PQF inherits the proof
+unchanged for this step. The PQF-specific glue (per §4.2) is at the
+next layer.
 
 **Why this matters relative to PQF 0.5.x:** the earlier in-house
 `pqf1-bind-extract-v1` HKDF combiner was a PQF-author construction
@@ -323,8 +324,10 @@ spec-mandated obligations:
 - RFC 5869 — HKDF
 - RFC 8949 — CBOR (§4.2.2 — deterministic encoding)
 - draft-connolly-cfrg-xwing-kem — X-Wing combiner
-- Barbosa, Boudgoust, Bouvier, Damgård, Kaledin, Pointcheval, Renes
-  (2024) — X-Wing IND-CCA proofs in ROM and QROM
+- Barbosa, Connolly, Duarte, Kaiser, Schwabe, Varner, Westerbaan (2024)
+  — "X-Wing: The Hybrid KEM You've Been Looking For", Communications in
+  Cryptology (IACR ePrint 2024/039); classical IND-CCA in the ROM,
+  post-quantum IND-CCA in the standard model
 - `PQF-SPEC-v1.md` §8 — normative Security Considerations
 - `PQF-DESIGN-RATIONALE-v1.md` §8, §11 — why each decision; open
   questions

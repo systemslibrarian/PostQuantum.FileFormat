@@ -40,7 +40,8 @@ the standardized X-Wing combiner. Changes:
   isolation and per-file binding are preserved at the AEAD layer.
 - The old §13 caveats "No formal security proof" and "combiner rationale
   wording" are obsolete for the KEM combiner: X-Wing has IND-CCA proofs
-  in ROM/QROM (Barbosa et al., 2024).
+  — classical in the ROM and post-quantum in the standard model
+  (Barbosa et al., 2024).
 - File format version stays **v1** (magic `PQF1`, version uint16
   `0x0001`); only the alg-map exact-match values and the recipient
   byte-string sizes change. Pre-1.0.0 §10.4 freeze does not yet apply.
@@ -176,8 +177,8 @@ draft-connolly-cfrg-xwing-kem.
 X-Wing combines the two into a 32-byte hybrid shared secret using a
 single SHA-3-256 invocation that binds both KEM shared secrets, the
 X25519 ephemeral public key, and the recipient's X25519 long-term public
-key (§2.4). The construction has IND-CCA proofs in the ROM and QROM
-(Barbosa et al., 2024).
+key (§2.4). The construction has IND-CCA proofs — classical in the ROM
+and post-quantum in the standard model (Barbosa et al., 2024).
 
 Implementations of v1 0.6.0 are wire-incompatible with v1 0.5.x and earlier.
 
@@ -221,8 +222,9 @@ where:
 KEK length is 32 bytes.
 
 **Rationale.** This is the construction defined and analyzed in
-draft-connolly-cfrg-xwing-kem and proven IND-CCA in the ROM and QROM by
-Barbosa et al. (2024). Critically for hybrid-confidentiality: the SHA-3
+draft-connolly-cfrg-xwing-kem, with IND-CCA proofs — classical in the
+ROM and post-quantum in the standard model — by Barbosa et al. (2024).
+Critically for hybrid-confidentiality: the SHA-3
 input binds both `ct_X` and `pk_X`, so the KEK is cryptographically tied
 to the specific ciphertext and the specific recipient public key. PQF
 0.3.x used an in-house HKDF-concatenate-then-extract combiner that
@@ -1264,8 +1266,9 @@ to fail validation under v1 rules.
   understanding continues to evolve. The hybrid construction mitigates but
   does not eliminate this risk.
 - **No formal security proof of the overall assembly.** The KEM combiner
-  is X-Wing, which has external IND-CCA proofs in ROM/QROM (Barbosa et
-  al., 2024). The full PQF stack (X-Wing + per-recipient AEAD wrap +
+  is X-Wing, with external IND-CCA proofs — classical in the ROM and
+  post-quantum in the standard model (Barbosa et al., 2024). The full
+  PQF stack (X-Wing + per-recipient AEAD wrap +
   chunked AEAD + hybrid signatures + footer) is not formally modeled
   end-to-end.
 - **Canonical CBOR dependency.** Deterministic CBOR is a tighter surface than
@@ -1297,8 +1300,9 @@ to fail validation under v1 rules.
 ### 14.2 Informative
 
 - draft-connolly-cfrg-xwing-kem — X-Wing hybrid KEM
-- Barbosa, Boyen, Connolly, Schwabe, Stehlé, Strub (2024) —
-  "X-Wing: The Hybrid KEM You've Been Looking For"
+- Barbosa, Connolly, Duarte, Kaiser, Schwabe, Varner, Westerbaan (2024)
+  — "X-Wing: The Hybrid KEM You've Been Looking For", Communications in
+  Cryptology (IACR ePrint 2024/039)
 - draft-ietf-pquip-hybrid-signature-spectrums
 - age file format — https://age-encryption.org/v1
 - RFC 8152 / 9052 — COSE (for signed-CBOR prior art)

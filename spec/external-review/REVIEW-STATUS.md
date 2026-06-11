@@ -22,10 +22,11 @@ what review actually consisted of.
 | Wire format and parser robustness | Differential testing | ⚠️ Mechanical, not human |
 | Side-channel / constant-time properties | Implementation library defaults | ❌ Not separately reviewed |
 
-¹ X-Wing itself has IND-CCA proofs in the ROM and QROM (Barbosa et al.,
-2024). PQF inherits the combiner's proof for the secret-derivation
-step. It does NOT inherit a proof for how PQF wraps that secret with
-file/recipient binding at the AEAD layer.
+¹ X-Wing itself has IND-CCA proofs — classical in the ROM and
+post-quantum in the standard model (Barbosa et al., 2024). PQF inherits
+the combiner's proof for the secret-derivation step. It does NOT
+inherit a proof for how PQF wraps that secret with file/recipient
+binding at the AEAD layer.
 
 ## What "reviewed" has meant so far
 

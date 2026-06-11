@@ -4,10 +4,11 @@
 > The model files in this directory describe PQF's previous in-house
 > KEM combiner, `pqf1-concat-extract-v1`, which was **removed** when
 > PQF migrated to the X-Wing combiner
-> (draft-connolly-cfrg-xwing-kem). X-Wing has external machine-checked
-> security proofs in ROM and QROM published by Barbosa, Boyen,
-> Connolly, Schwabe, Stehlé, and Strub (2024) — there is no longer
-> anything for PQF to model at the KEM-combiner layer.
+> (draft-connolly-cfrg-xwing-kem). X-Wing has external security proofs
+> — classical IND-CCA in the ROM and post-quantum IND-CCA in the
+> standard model — published by Barbosa, Connolly, Duarte, Kaiser,
+> Schwabe, Varner, and Westerbaan (2024) — there is no longer anything
+> for PQF to model at the KEM-combiner layer.
 >
 > The files are left in place for historical reference and because
 > their structural shape (KEM → KDF → AEAD-wrap) is a useful starting
@@ -54,6 +55,7 @@ Two reasons:
 For the X-Wing combiner itself, the right references are:
 
 - draft-connolly-cfrg-xwing-kem (the spec).
-- Barbosa, Boyen, Connolly, Schwabe, Stehlé, Strub (2024) — "X-Wing:
-  The Hybrid KEM You've Been Looking For" — the ROM/QROM IND-CCA
-  security proofs.
+- Barbosa, Connolly, Duarte, Kaiser, Schwabe, Varner, Westerbaan (2024)
+  — "X-Wing: The Hybrid KEM You've Been Looking For", Communications in
+  Cryptology (IACR ePrint 2024/039) — IND-CCA proofs in the ROM
+  (classical) and the standard model (post-quantum).

@@ -3,7 +3,8 @@
  *
  * **SUPERSEDED** as of spec v0.4.0 (2026-05-30). PQF now uses the X-Wing
  * combiner (draft-connolly-cfrg-xwing-kem), which has external IND-CCA
- * proofs in ROM and QROM (Barbosa et al., 2024) — there is no longer a
+ * proofs — classical in the ROM and post-quantum in the standard model
+ * (Barbosa et al., 2024) — there is no longer a
  * PQF-specific combiner to model. This file is retained for historical
  * audit-trail purposes only. See README.md.
  *
