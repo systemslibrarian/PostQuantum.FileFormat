@@ -31,7 +31,7 @@ pqf inspect  --in secret.pqf
 pqf decrypt  --in secret.pqf --out secret.dec.pdf --identity alice.key.json --mode authenticated
 ```
 
-> **Preview:** `pqf` is published as `0.6.0-preview.*`. The wire format is draft v0.6.0 (X-Wing + ML-KEM-768) and is **wire-incompatible** with v0.5.x and v0.3.x previews. Files produced by previews are not guaranteed to be readable by `v1.0.0`.
+> **Preview & scope:** `pqf` is published as `0.6.0-preview.*` as a **demonstration / dogfooding CLI** for the format and reference library — *not* a production library dependency. Its command surface, exit codes, and output shape are not a stability contract and may change between previews; projects building on PQF should depend on `PostQuantum.FileFormat` directly. The wire format is draft v0.6.0 (X-Wing + ML-KEM-768) and is **wire-incompatible** with v0.5.x and v0.3.x previews. Files produced by previews are not guaranteed to be readable by `v1.0.0`. See [`cli/README.md`](cli/README.md) for the full scope statement.
 
 ## How to try it
 
@@ -237,7 +237,7 @@ every N — that's the design working.
 | Specification | Draft v0.6.0 |
 | Reference implementation (.NET) | Phases 1–5 complete on `main`, CI green |
 | Test vectors | v1 set (positive + negative) committed; reproducibility gated on the unsigned subset |
-| CLI (`pqf`) | `keygen`, `encrypt`, `decrypt`, `inspect`, `fingerprint`; published as `0.6.0-preview.3` on NuGet.org |
+| CLI (`pqf`) | `keygen`, `encrypt`, `decrypt`, `inspect`, `fingerprint`; published as `0.6.0-preview.3` on NuGet.org as a demonstration / dogfooding CLI ([scope](cli/README.md)) — not a production library dependency |
 | Second-language implementation | Rust reader in `impl/rust/pqf-reader` + cross-impl conformance gate in CI |
 | Parser fuzz harness | `tests/PostQuantum.FileFormat.Fuzz` (CBOR / header / streaming targets); 60-second CI smoke pass |
 | NIST KAT cross-check | `tests/PostQuantum.FileFormat.Kat` scaffolded (verifies Decapsulate + Verify against FIPS 203/204 vectors when fetched) |
