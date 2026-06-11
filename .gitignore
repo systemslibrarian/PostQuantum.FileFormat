@@ -26,6 +26,9 @@ secret.*
 *.user
 *.suo
 
+# Claude Code local agent state
+.claude/
+
 # OS
 .DS_Store
 Thumbs.db
