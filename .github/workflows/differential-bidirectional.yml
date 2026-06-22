@@ -28,7 +28,7 @@ jobs:
     name: 8 Rust-encoded files — .NET reader must accept
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@stable
