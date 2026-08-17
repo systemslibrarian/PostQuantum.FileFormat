@@ -34,7 +34,7 @@
 
   <ItemGroup>
     <!-- Source Link: embed git commit + repo URL into the assembly metadata. -->
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.300" PrivateAssets="All" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.400" PrivateAssets="All" />
   </ItemGroup>
 
 </Project>
