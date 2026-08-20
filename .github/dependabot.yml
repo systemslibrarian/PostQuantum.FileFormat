@@ -45,6 +45,12 @@ updates:
         patterns:
           - "*"
         exclude-patterns:
+          # Anything that implements or underpins a cryptographic primitive is
+          # excluded so it arrives as its own reviewable PR. A major bump to one
+          # of these is never a routine update: x25519-dalek 3.0 and
+          # ed25519-dalek 3.0 arrived grouped as "rust-non-crypto" and broke the
+          # build outright, because ed25519-dalek 3.0 removed the `std` feature
+          # that pqf-reader requests.
           - "ml-kem"
           - "ml-dsa"
           - "hkdf"
@@ -53,6 +59,11 @@ updates:
           - "generic-array"
           - "rand_core"
           - "zeroize"
+          - "*dalek*"
+          - "aes-gcm"
+          - "aead"
+          - "signature"
+          - "digest"
 
   # GitHub Actions. Safe to group everything.
   - package-ecosystem: "github-actions"
