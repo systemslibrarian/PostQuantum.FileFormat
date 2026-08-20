@@ -36,7 +36,7 @@ ed25519-dalek = { version = "3.0", features = ["alloc"] }
 ml-dsa = "0.1.0"
 
 # AEAD + hashing + KDF
-aes-gcm = "0.10"
+aes-gcm = "0.11"
 sha2 = "0.11"
 sha3 = "0.12"   # X-Wing combiner (SHA3-256)
 hkdf = "0.13"
