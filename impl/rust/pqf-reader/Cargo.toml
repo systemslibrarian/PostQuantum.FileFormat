@@ -16,7 +16,7 @@ path = "src/bin/conformance.rs"
 
 [dependencies]
 # Hybrid KEM
-x25519-dalek = { version = "2.0", features = ["static_secrets"] }
+x25519-dalek = { version = "3.0", features = ["static_secrets"] }
 # ml-kem 0.3 moved KemCore to `kem::Kem`, replaced `EncodedSizeUser` with
 # the (deprecated but interop-required) `ExpandedKeyEncoding` trait, and
 # moved per-parameter type aliases (Ciphertext, DecapsulationKey) into
@@ -28,7 +28,7 @@ x25519-dalek = { version = "2.0", features = ["static_secrets"] }
 ml-kem = "0.3.0"
 
 # Hybrid signatures
-ed25519-dalek = { version = "2.1", features = ["std"] }
+ed25519-dalek = { version = "3.0", features = ["alloc"] }
 # ml-dsa 0.1 routes the `signature::Verifier::verify` trait method to
 # FIPS 204 Algorithm 8 (no domain separator). BouncyCastle's pure
 # ML-DSA-87 signs with Algorithm 3 (with the empty-context prefix), so
